@@ -171,8 +171,7 @@ struct BookRow: View {
         HStack(spacing: 12) {
             // Thumbnail
             if let thumbnailData = book.thumbnailData,
-               let thumbnail = NSImage(data: thumbnailData)
-            {
+               let thumbnail = NSImage(data: thumbnailData) {
                 Image(nsImage: thumbnail)
                     .resizable()
                     .aspectRatio(contentMode: .fill)

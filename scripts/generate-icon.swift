@@ -14,7 +14,7 @@ let sizes: [(size: Int, scale: Int, suffix: String)] = [
     (256, 1, "256x256"),
     (256, 2, "256x256@2x"),
     (512, 1, "512x512"),
-    (512, 2, "512x512@2x"),
+    (512, 2, "512x512@2x")
 ]
 
 func drawIcon(size: CGFloat) -> NSImage {
@@ -38,7 +38,7 @@ func drawIcon(size: CGFloat) -> NSImage {
     let colorSpace = CGColorSpaceCreateDeviceRGB()
     let colors = [
         CGColor(red: 0.15, green: 0.08, blue: 0.25, alpha: 1.0), // Deep purple
-        CGColor(red: 0.08, green: 0.12, blue: 0.28, alpha: 1.0), // Dark blue
+        CGColor(red: 0.08, green: 0.12, blue: 0.28, alpha: 1.0) // Dark blue
     ] as CFArray
 
     if let gradient = CGGradient(colorsSpace: colorSpace, colors: colors, locations: [0, 1]) {

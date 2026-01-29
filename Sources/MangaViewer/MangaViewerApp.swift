@@ -11,7 +11,7 @@ struct MangaViewerApp: App {
             Book.self,
             ReadingProgress.self,
             Bookmark.self,
-            Tag.self,
+            Tag.self
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

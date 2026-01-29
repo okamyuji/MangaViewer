@@ -1,7 +1,7 @@
 import Foundation
-@testable import MangaViewer
 import SwiftUI
 import Testing
+@testable import MangaViewer
 
 @Suite("ImageFileFilter Tests")
 struct ImageFileFilterTests {

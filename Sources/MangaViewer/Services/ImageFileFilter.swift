@@ -2,7 +2,7 @@ import Foundation
 
 enum ImageFileFilter {
     static let supportedExtensions: Set<String> = [
-        "jpg", "jpeg", "png", "gif", "webp", "bmp", "tiff", "tif",
+        "jpg", "jpeg", "png", "gif", "webp", "bmp", "tiff", "tif"
     ]
 
     static func isImageFile(_ path: String) -> Bool {

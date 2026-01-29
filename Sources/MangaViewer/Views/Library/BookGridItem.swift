@@ -60,8 +60,7 @@ struct BookGridItem: View {
     @ViewBuilder
     private var thumbnailView: some View {
         if let thumbnailData = book.thumbnailData,
-           let nsImage = NSImage(data: thumbnailData)
-        {
+           let nsImage = NSImage(data: thumbnailData) {
             Image(nsImage: nsImage)
                 .resizable()
                 .aspectRatio(contentMode: .fill)

@@ -1,0 +1,16 @@
+# SwiftFormat configuration for compatibility with SwiftLint
+
+# Trailing commas: SwiftLint expects no trailing commas in collections
+--trailing-commas never
+
+# Disable wrapMultilineStatementBraces to keep braces on the same line
+# SwiftLint's opening_brace rule requires braces on the same line
+--disable wrapMultilineStatementBraces
+
+# Standard formatting options
+--indent 4
+--linebreaks lf
+--self remove
+--importgrouping testable-bottom
+--commas inline
+--trimwhitespace always

@@ -29,7 +29,7 @@ struct LibraryView: View {
     }
 
     private let gridColumns = [
-        GridItem(.adaptive(minimum: Constants.Grid.minItemWidth), spacing: Constants.Grid.spacing),
+        GridItem(.adaptive(minimum: Constants.Grid.minItemWidth), spacing: Constants.Grid.spacing)
     ]
 
     var body: some View {
