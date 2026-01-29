@@ -1,0 +1,23 @@
+excluded:
+  - .build
+  - Package.swift
+
+line_length:
+  warning: 120
+  error: 200
+  ignores_urls: true
+  ignores_function_declarations: false
+  ignores_comments: true
+
+identifier_name:
+  min_length:
+    warning: 2
+    error: 1
+  max_length:
+    warning: 40
+    error: 60
+  allowed_symbols: ["_"]
+
+cyclomatic_complexity:
+  warning: 15
+  error: 20
