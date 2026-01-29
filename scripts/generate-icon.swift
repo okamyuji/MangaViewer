@@ -14,7 +14,7 @@ let sizes: [(size: Int, scale: Int, suffix: String)] = [
     (256, 1, "256x256"),
     (256, 2, "256x256@2x"),
     (512, 1, "512x512"),
-    (512, 2, "512x512@2x")
+    (512, 2, "512x512@2x"),
 ]
 
 func drawIcon(size: CGFloat) -> NSImage {
@@ -37,8 +37,8 @@ func drawIcon(size: CGFloat) -> NSImage {
 
     let colorSpace = CGColorSpaceCreateDeviceRGB()
     let colors = [
-        CGColor(red: 0.15, green: 0.08, blue: 0.25, alpha: 1.0),  // Deep purple
-        CGColor(red: 0.08, green: 0.12, blue: 0.28, alpha: 1.0)   // Dark blue
+        CGColor(red: 0.15, green: 0.08, blue: 0.25, alpha: 1.0), // Deep purple
+        CGColor(red: 0.08, green: 0.12, blue: 0.28, alpha: 1.0), // Dark blue
     ] as CFArray
 
     if let gradient = CGGradient(colorsSpace: colorSpace, colors: colors, locations: [0, 1]) {
@@ -74,7 +74,7 @@ func drawIcon(size: CGFloat) -> NSImage {
     context.setStrokeColor(CGColor(red: 0.7, green: 0.68, blue: 0.65, alpha: 0.6))
     context.setLineWidth(size * 0.008)
 
-    for i in 1...4 {
+    for i in 1 ... 4 {
         let y = leftPage.minY + leftPage.height * CGFloat(i) / 5
         context.move(to: CGPoint(x: leftPage.minX + size * 0.03, y: y))
         context.addLine(to: CGPoint(x: leftPage.maxX - size * 0.03, y: y))
@@ -108,9 +108,9 @@ func drawIcon(size: CGFloat) -> NSImage {
         let cosAngle = CGFloat(Darwin.cos(angle))
         let sinAngle = CGFloat(Darwin.sin(angle))
         context.move(to: CGPoint(x: lineCenter.x + cosAngle * startRadius,
-                                  y: lineCenter.y + sinAngle * startRadius))
+                                 y: lineCenter.y + sinAngle * startRadius))
         context.addLine(to: CGPoint(x: lineCenter.x + cosAngle * endRadius,
-                                     y: lineCenter.y + sinAngle * endRadius))
+                                    y: lineCenter.y + sinAngle * endRadius))
     }
     context.strokePath()
 
@@ -133,8 +133,8 @@ func drawIcon(size: CGFloat) -> NSImage {
 
     // Circular badge
     context.setShadow(offset: CGSize(width: 1, height: -1), blur: size * 0.02, color: CGColor(red: 0, green: 0, blue: 0, alpha: 0.3))
-    context.setFillColor(CGColor(red: 0.95, green: 0.3, blue: 0.35, alpha: 1.0))  // Vibrant red
-    context.fillEllipse(in: CGRect(x: accentX - accentSize/2, y: accentY - accentSize/2, width: accentSize, height: accentSize))
+    context.setFillColor(CGColor(red: 0.95, green: 0.3, blue: 0.35, alpha: 1.0)) // Vibrant red
+    context.fillEllipse(in: CGRect(x: accentX - accentSize / 2, y: accentY - accentSize / 2, width: accentSize, height: accentSize))
 
     // "M" for Manga in the badge
     context.setShadow(offset: .zero, blur: 0)
@@ -150,7 +150,7 @@ func drawIcon(size: CGFloat) -> NSImage {
     context.move(to: CGPoint(x: mX, y: mY))
     context.addLine(to: CGPoint(x: mX, y: mY + mHeight))
     context.move(to: CGPoint(x: mX, y: mY + mHeight))
-    context.addLine(to: CGPoint(x: mX + mWidth/2, y: mY + mHeight * 0.4))
+    context.addLine(to: CGPoint(x: mX + mWidth / 2, y: mY + mHeight * 0.4))
     context.addLine(to: CGPoint(x: mX + mWidth, y: mY + mHeight))
     context.move(to: CGPoint(x: mX + mWidth, y: mY))
     context.addLine(to: CGPoint(x: mX + mWidth, y: mY + mHeight))
@@ -176,7 +176,8 @@ for (size, scale, suffix) in sizes {
 
     guard let tiffData = icon.tiffRepresentation,
           let bitmap = NSBitmapImageRep(data: tiffData),
-          let pngData = bitmap.representation(using: .png, properties: [:]) else {
+          let pngData = bitmap.representation(using: .png, properties: [:])
+    else {
         print("Failed to create PNG for \(suffix)")
         continue
     }
