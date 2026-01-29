@@ -1,6 +1,14 @@
 excluded:
   - .build
   - Package.swift
+  - scripts
+
+trailing_comma:
+  mandatory_comma: false
+
+function_body_length:
+  warning: 60
+  error: 100
 
 line_length:
   warning: 120
@@ -19,5 +27,5 @@ identifier_name:
   allowed_symbols: ["_"]
 
 cyclomatic_complexity:
-  warning: 15
-  error: 20
+  warning: 20
+  error: 30

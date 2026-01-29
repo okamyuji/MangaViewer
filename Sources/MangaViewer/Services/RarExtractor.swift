@@ -1,131 +1,74 @@
 import AppKit
 import Foundation
+import Unrar
 
-final class RarExtractor: PageProvider, Sendable {
-    private let tempDirectory: URL
-    private let imageFiles: [URL]
+final class RarExtractor: PageProvider, @unchecked Sendable {
+  private let archive: Archive
+  private let imageEntries: [Entry]
+  private let lock = NSLock()
+  let pageCount: Int
 
-    var pageCount: Int {
-        imageFiles.count
+  init(url: URL) throws {
+    guard FileManager.default.fileExists(atPath: url.path) else {
+      throw MangaViewerError.archiveNotFound
     }
 
-    init(url: URL) throws {
-        guard FileManager.default.fileExists(atPath: url.path) else {
-            throw MangaViewerError.archiveNotFound
-        }
-
-        let tempDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("MangaViewer")
-            .appendingPathComponent(UUID().uuidString)
-
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-        self.tempDirectory = tempDir
-
-        try Self.extractArchive(from: url, to: tempDir)
-
-        let images = Self.findImageFiles(in: tempDir)
-        self.imageFiles = ImageFileFilter.sortedNaturally(images)
-
-        if imageFiles.isEmpty {
-            throw MangaViewerError.extractionFailed("No image files found in archive")
-        }
+    do {
+      self.archive = try Archive(fileURL: url)
+    } catch {
+      throw MangaViewerError.extractionFailed(
+        "Failed to open RAR archive: \(error.localizedDescription)")
     }
 
-    private static func extractArchive(from source: URL, to destination: URL) throws {
-        // Try unar first (comes with The Unarchiver, handles both RAR4 and RAR5)
-        if tryExtract(executable: "/usr/local/bin/unar", arguments: ["-o", destination.path, source.path]) {
-            return
-        }
+    do {
+      let allEntries = try archive.entries()
+      let imageOnlyEntries = allEntries.filter { entry in
+        !entry.directory && ImageFileFilter.isImageFile(entry.fileName)
+      }
 
-        // Try unar from homebrew arm64
-        if tryExtract(executable: "/opt/homebrew/bin/unar", arguments: ["-o", destination.path, source.path]) {
-            return
-        }
+      let sortedNames = ImageFileFilter.sortedNaturally(imageOnlyEntries.map(\.fileName))
+      let entryMap = Dictionary(uniqueKeysWithValues: imageOnlyEntries.map { ($0.fileName, $0) })
+      self.imageEntries = sortedNames.compactMap { entryMap[$0] }
+      self.pageCount = imageEntries.count
 
-        // Try 7z
-        if tryExtract(executable: "/usr/local/bin/7z", arguments: ["x", "-o\(destination.path)", source.path]) {
-            return
-        }
+      if imageEntries.isEmpty {
+        throw MangaViewerError.extractionFailed("No image files found in archive")
+      }
+    } catch let error as MangaViewerError {
+      throw error
+    } catch {
+      throw MangaViewerError.extractionFailed(
+        "Failed to read RAR archive: \(error.localizedDescription)")
+    }
+  }
 
-        // Try 7z from homebrew arm64
-        if tryExtract(executable: "/opt/homebrew/bin/7z", arguments: ["x", "-o\(destination.path)", source.path]) {
-            return
-        }
-
-        // Try unrar
-        let destPath = destination.path + "/"
-        if tryExtract(executable: "/usr/local/bin/unrar", arguments: ["x", "-o+", source.path, destPath]) {
-            return
-        }
-
-        // Try unrar from homebrew arm64
-        if tryExtract(executable: "/opt/homebrew/bin/unrar", arguments: ["x", "-o+", source.path, destPath]) {
-            return
-        }
-
-        throw MangaViewerError.extractionFailed(
-            "Failed to extract RAR archive. Please install one of: unar, 7z, or unrar (brew install unar)"
-        )
+  func image(at index: Int) async throws -> NSImage {
+    guard index >= 0 && index < imageEntries.count else {
+      throw MangaViewerError.pageOutOfRange(index, imageEntries.count)
     }
 
-    private static func tryExtract(executable: String, arguments: [String]) -> Bool {
-        guard FileManager.default.fileExists(atPath: executable) else {
-            return false
-        }
+    let entry = imageEntries[index]
+    let imageData = try extractEntry(entry)
 
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: executable)
-        process.arguments = arguments
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
-
-        do {
-            try process.run()
-            process.waitUntilExit()
-            return process.terminationStatus == 0
-        } catch {
-            return false
-        }
+    guard let image = NSImage(data: imageData) else {
+      throw MangaViewerError.invalidImageData
     }
 
-    private static func findImageFiles(in directory: URL) -> [URL] {
-        var results: [URL] = []
-        let fileManager = FileManager.default
+    return image
+  }
 
-        guard let enumerator = fileManager.enumerator(
-            at: directory,
-            includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsHiddenFiles]
-        ) else {
-            return results
-        }
+  private func extractEntry(_ entry: Entry) throws -> Data {
+    lock.lock()
+    defer { lock.unlock() }
 
-        for case let fileURL as URL in enumerator where ImageFileFilter.isImageFile(fileURL) {
-            results.append(fileURL)
-        }
-
-        return results
+    do {
+      return try archive.extract(entry)
+    } catch {
+      throw MangaViewerError.extractionFailed("Failed to extract: \(error.localizedDescription)")
     }
+  }
 
-    func image(at index: Int) async throws -> NSImage {
-        guard index >= 0 && index < imageFiles.count else {
-            throw MangaViewerError.pageOutOfRange(index, imageFiles.count)
-        }
-
-        let fileURL = imageFiles[index]
-
-        guard let image = NSImage(contentsOf: fileURL) else {
-            throw MangaViewerError.invalidImageData
-        }
-
-        return image
-    }
-
-    func close() {
-        try? FileManager.default.removeItem(at: tempDirectory)
-    }
-
-    deinit {
-        close()
-    }
+  func close() {
+    // Archive is automatically closed when deallocated
+  }
 }
