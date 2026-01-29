@@ -1,5 +1,49 @@
 import SwiftUI
 
+// Custom slider without the black border
+struct CleanSlider: View {
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+    let step: Double
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                // Track background
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(Color.secondary.opacity(0.25))
+                    .frame(height: 4)
+
+                // Track fill (progress)
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(Color.accentColor)
+                    .frame(width: geometry.size.width * percentage, height: 4)
+
+                // Thumb
+                Circle()
+                    .fill(Color.accentColor)
+                    .frame(width: 14, height: 14)
+                    .offset(x: geometry.size.width * percentage - 7)
+                    .gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { dragValue in
+                                let newPercentage = min(max(0, dragValue.location.x / geometry.size.width), 1)
+                                let rawValue = range.lowerBound + (range.upperBound - range.lowerBound) * newPercentage
+                                let steppedValue = round(rawValue / step) * step
+                                value = min(max(steppedValue, range.lowerBound), range.upperBound)
+                            }
+                    )
+            }
+            .frame(height: 14)
+        }
+        .frame(height: 14)
+    }
+
+    private var percentage: Double {
+        (value - range.lowerBound) / (range.upperBound - range.lowerBound)
+    }
+}
+
 struct ReaderToolbar: View {
     @Bindable var viewModel: ReaderViewModel
 
@@ -43,12 +87,12 @@ struct ReaderToolbar: View {
                 .disabled(viewModel.currentPage >= viewModel.totalPages - 1)
 
                 // RTL slider: max on left, min on right
-                Slider(
+                CleanSlider(
                     value: Binding(
                         get: { Double(viewModel.totalPages - 1 - viewModel.currentPage) },
                         set: { viewModel.goToPage(viewModel.totalPages - 1 - Int($0)) }
                     ),
-                    in: 0 ... Double(max(viewModel.totalPages - 1, 1)),
+                    range: 0 ... Double(max(viewModel.totalPages - 1, 1)),
                     step: 1
                 )
                 .frame(width: 150)
@@ -77,12 +121,12 @@ struct ReaderToolbar: View {
                     .monospacedDigit()
                     .frame(minWidth: 80)
 
-                Slider(
+                CleanSlider(
                     value: Binding(
                         get: { Double(viewModel.currentPage) },
                         set: { viewModel.goToPage(Int($0)) }
                     ),
-                    in: 0 ... Double(max(viewModel.totalPages - 1, 1)),
+                    range: 0 ... Double(max(viewModel.totalPages - 1, 1)),
                     step: 1
                 )
                 .frame(width: 150)
