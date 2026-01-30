@@ -1,6 +1,6 @@
 import SwiftUI
 
-// Custom slider without the black border
+/// Custom slider without the black border
 struct CleanSlider: View {
     @Binding var value: Double
     let range: ClosedRange<Double>

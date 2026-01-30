@@ -7,7 +7,6 @@ struct LibraryView: View {
     @State private var searchText = ""
     @State private var sortOrder: SortOrder = .title
     @State private var selectedBook: Book?
-    @State private var showReader = false
 
     private var filteredBooks: [Book] {
         var result = books
@@ -41,8 +40,12 @@ struct LibraryView: View {
                     LazyVGrid(columns: gridColumns, spacing: Constants.Grid.spacing) {
                         ForEach(filteredBooks) { book in
                             BookGridItem(book: book) {
-                                selectedBook = book
-                                showReader = true
+                                // Reset selection first to ensure navigation triggers
+                                selectedBook = nil
+                                // Use async to allow SwiftUI to process the nil state
+                                Task { @MainActor in
+                                    selectedBook = book
+                                }
                             }
                         }
                     }
@@ -72,10 +75,9 @@ struct LibraryView: View {
                 }
             }
         }
-        .navigationDestination(isPresented: $showReader) {
-            if let book = selectedBook {
-                ReaderView(book: book)
-            }
+        .navigationDestination(item: $selectedBook) { book in
+            ReaderView(book: book)
+                .id(book.id)
         }
     }
 

@@ -9,7 +9,7 @@ struct SidebarView: View {
     @State private var searchText = ""
     @State private var sortOrder: SortOrder = .title
     @State private var selectedBook: Book?
-    @State private var showReader = false
+    @State private var navigationBook: Book?
     @State private var showAddTagSheet = false
     @State private var selectedTag: Tag?
 
@@ -111,14 +111,17 @@ struct SidebarView: View {
                 .help("Sort")
             }
         }
-        .navigationDestination(isPresented: $showReader) {
-            if let book = selectedBook {
-                ReaderView(book: book)
-            }
+        .navigationDestination(item: $navigationBook) { book in
+            ReaderView(book: book)
+                .id(book.id)
         }
         .onChange(of: selectedBook) { _, newBook in
-            if newBook != nil {
-                showReader = true
+            if let book = newBook {
+                // Reset navigation first to ensure it triggers even for the same book
+                navigationBook = nil
+                Task { @MainActor in
+                    navigationBook = book
+                }
             }
         }
         .sheet(isPresented: $showAddTagSheet) {
