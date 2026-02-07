@@ -236,18 +236,12 @@ final class ReaderViewModel {
     }
 
     private func loadSingleImage() async {
-        guard let provider else { return }
+        guard provider != nil else { return }
 
-        do {
-            if let cached = imageCache.image(for: currentPage) {
-                currentImage = applyFilters(to: cached)
-            } else {
-                let image = try await provider.image(at: currentPage)
-                imageCache.set(image, for: currentPage)
-                currentImage = applyFilters(to: image)
-            }
-        } catch {
-            errorMessage = error.localizedDescription
+        if let image = await loadImageForPage(currentPage) {
+            currentImage = applyFilters(to: image)
+        } else {
+            currentImage = nil
         }
     }
 
@@ -256,60 +250,91 @@ final class ReaderViewModel {
         return size.width > size.height * 1.2
     }
 
-    private func loadImageForPage(_ index: Int) async throws -> NSImage? {
+    private func loadImageForPage(_ index: Int) async -> NSImage? {
         guard let provider, index >= 0, index < totalPages else { return nil }
         if let cached = imageCache.image(for: index) {
             return cached
         }
-        let image = try await provider.image(at: index)
-        imageCache.set(image, for: index)
-        return image
+        do {
+            let image = try await provider.image(at: index)
+            imageCache.set(image, for: index)
+            return image
+        } catch {
+            logger.error("Failed to load page \(index): \(error.localizedDescription)")
+            return createErrorPlaceholder(page: index, error: error)
+        }
     }
 
     private func loadSpreadImages() async {
         guard provider != nil else { return }
 
-        do {
-            // Load the primary page first to check if it's a wide (spread scan) image
-            let primaryImage = try await loadImageForPage(currentPage)
+        // Load the primary page first to check if it's a wide (spread scan) image
+        let primaryImage = await loadImageForPage(currentPage)
 
-            if let primary = primaryImage, isLandscapeImage(primary) {
-                // Wide image detected: show only this page across the full spread
-                isCurrentPageWide = true
-                let filtered = applyFilters(to: primary)
-                spreadImages = (filtered, nil)
-                return
-            }
-
-            isCurrentPageWide = false
-
-            let secondaryIndex = currentPage + 1
-            let secondaryImage = try await loadImageForPage(secondaryIndex)
-
-            // If the secondary image is also wide, don't pair them
-            if let secondary = secondaryImage, isLandscapeImage(secondary) {
-                // Show only primary page, secondary will be shown on next navigation
-                let filteredPrimary = primaryImage.map { applyFilters(to: $0) }
-                if readingDirection == .rightToLeft {
-                    spreadImages = (nil, filteredPrimary)
-                } else {
-                    spreadImages = (filteredPrimary, nil)
-                }
-                return
-            }
-
-            // Normal spread: two portrait pages side by side
-            let filteredPrimary = primaryImage.map { applyFilters(to: $0) }
-            let filteredSecondary = secondaryImage.map { applyFilters(to: $0) }
-
-            if readingDirection == .rightToLeft {
-                spreadImages = (filteredSecondary, filteredPrimary)
-            } else {
-                spreadImages = (filteredPrimary, filteredSecondary)
-            }
-        } catch {
-            errorMessage = error.localizedDescription
+        if let primary = primaryImage, isLandscapeImage(primary) {
+            // Wide image detected: show only this page across the full spread
+            isCurrentPageWide = true
+            let filtered = applyFilters(to: primary)
+            spreadImages = (filtered, nil)
+            return
         }
+
+        isCurrentPageWide = false
+
+        let secondaryIndex = currentPage + 1
+        let secondaryImage = await loadImageForPage(secondaryIndex)
+
+        // If the secondary image is also wide, don't pair them
+        if let secondary = secondaryImage, isLandscapeImage(secondary) {
+            // Show only primary page, secondary will be shown on next navigation
+            let filteredPrimary = primaryImage.map { applyFilters(to: $0) }
+            if readingDirection == .rightToLeft {
+                spreadImages = (nil, filteredPrimary)
+            } else {
+                spreadImages = (filteredPrimary, nil)
+            }
+            return
+        }
+
+        // Normal spread: two portrait pages side by side
+        let filteredPrimary = primaryImage.map { applyFilters(to: $0) }
+        let filteredSecondary = secondaryImage.map { applyFilters(to: $0) }
+
+        if readingDirection == .rightToLeft {
+            spreadImages = (filteredSecondary, filteredPrimary)
+        } else {
+            spreadImages = (filteredPrimary, filteredSecondary)
+        }
+    }
+
+    private func createErrorPlaceholder(page: Int, error: Error) -> NSImage {
+        let size = NSSize(width: 800, height: 1200)
+        let image = NSImage(size: size)
+        image.lockFocus()
+
+        NSColor.windowBackgroundColor.setFill()
+        NSBezierPath.fill(NSRect(origin: .zero, size: size))
+
+        let iconRect = NSRect(x: 350, y: 650, width: 100, height: 100)
+        if let symbol = NSImage(
+            systemSymbolName: "exclamationmark.triangle",
+            accessibilityDescription: nil
+        ) {
+            symbol.draw(in: iconRect)
+        }
+
+        let style = NSMutableParagraphStyle()
+        style.alignment = .center
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 14),
+            .foregroundColor: NSColor.secondaryLabelColor,
+            .paragraphStyle: style
+        ]
+        let text = "Page \(page + 1)\n\(error.localizedDescription)"
+        text.draw(in: NSRect(x: 50, y: 560, width: 700, height: 80), withAttributes: attrs)
+
+        image.unlockFocus()
+        return image
     }
 
     private func applyFilters(to image: NSImage) -> NSImage {
