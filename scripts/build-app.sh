@@ -36,6 +36,12 @@ if [ -f "Resources/AppIcon.icns" ]; then
     echo "📎 Added app icon"
 fi
 
+# Copy privacy manifest if exists
+if [ -f "Resources/PrivacyInfo.xcprivacy" ]; then
+    cp "Resources/PrivacyInfo.xcprivacy" "${APP_BUNDLE}/Contents/Resources/"
+    echo "📎 Added privacy manifest"
+fi
+
 # Create Info.plist
 cat > "${APP_BUNDLE}/Contents/Info.plist" << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -49,7 +55,7 @@ cat > "${APP_BUNDLE}/Contents/Info.plist" << 'EOF'
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
-    <string>com.mangaviewer.app</string>
+    <string>work.okamyuji.mangaviewer</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
@@ -64,6 +70,10 @@ cat > "${APP_BUNDLE}/Contents/Info.plist" << 'EOF'
     <string>1</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.graphics-design</string>
+    <key>NSHumanReadableCopyright</key>
+    <string>Copyright © 2025 MangaViewer. All rights reserved.</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSSupportsAutomaticTermination</key>
@@ -75,10 +85,10 @@ cat > "${APP_BUNDLE}/Contents/Info.plist" << 'EOF'
         <dict>
             <key>CFBundleTypeName</key>
             <string>Comic Book Archive (ZIP)</string>
-            <key>CFBundleTypeExtensions</key>
+            <key>LSItemContentTypes</key>
             <array>
-                <string>cbz</string>
-                <string>zip</string>
+                <string>work.okamyuji.mangaviewer.cbz</string>
+                <string>public.zip-archive</string>
             </array>
             <key>CFBundleTypeRole</key>
             <string>Viewer</string>
@@ -88,15 +98,52 @@ cat > "${APP_BUNDLE}/Contents/Info.plist" << 'EOF'
         <dict>
             <key>CFBundleTypeName</key>
             <string>Comic Book Archive (RAR)</string>
-            <key>CFBundleTypeExtensions</key>
+            <key>LSItemContentTypes</key>
             <array>
-                <string>cbr</string>
-                <string>rar</string>
+                <string>work.okamyuji.mangaviewer.cbr</string>
             </array>
             <key>CFBundleTypeRole</key>
             <string>Viewer</string>
             <key>LSHandlerRank</key>
             <string>Default</string>
+        </dict>
+    </array>
+    <key>UTExportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>work.okamyuji.mangaviewer.cbz</string>
+            <key>UTTypeDescription</key>
+            <string>Comic Book Archive (ZIP)</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.zip-archive</string>
+                <string>public.data</string>
+            </array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array>
+                    <string>cbz</string>
+                </array>
+            </dict>
+        </dict>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>work.okamyuji.mangaviewer.cbr</string>
+            <key>UTTypeDescription</key>
+            <string>Comic Book Archive (RAR)</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.data</string>
+            </array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array>
+                    <string>cbr</string>
+                </array>
+            </dict>
         </dict>
     </array>
     <key>NSPrincipalClass</key>
