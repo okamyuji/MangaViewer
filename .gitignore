@@ -71,7 +71,6 @@ fastlane/test_output/
 
 # Ruby / Bundler
 vendor/bundle/
-Gemfile.lock
 
 .playwright-mcp/
 

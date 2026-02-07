@@ -1,26 +1,77 @@
 import Darwin
 import Foundation
+import os.log
+
+private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "MangaViewer", category: "LibraryWatcher")
 
 @Observable
 @MainActor
 final class LibraryWatcher {
     private var sources: [URL: (source: any DispatchSourceFileSystemObject, fd: Int32)] = [:]
-    private var watchedFolders: Set<URL> = []
+    private var watchedRoots: Set<URL> = []
     private let debounceInterval: TimeInterval = 2.0
     private var debounceWorkItem: DispatchWorkItem?
 
     var onFilesChanged: (() -> Void)?
 
     func watch(folder: URL) {
-        guard !watchedFolders.contains(folder) else { return }
+        guard !watchedRoots.contains(folder) else { return }
+        watchedRoots.insert(folder)
 
-        let accessing = folder.startAccessingSecurityScopedResource()
+        watchDirectory(folder)
 
-        let fd = open(folder.path, O_EVTONLY)
+        let fileManager = FileManager.default
+        guard
+            let enumerator = fileManager.enumerator(
+                at: folder,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            )
+        else {
+            return
+        }
+
+        for case let subURL as URL in enumerator {
+            let isDir =
+                (try? subURL.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+            if isDir {
+                watchDirectory(subURL)
+            }
+        }
+    }
+
+    func unwatch(folder: URL) {
+        watchedRoots.remove(folder)
+
+        for url in sources.keys where url.path.hasPrefix(folder.path) {
+            if let entry = sources[url] {
+                entry.source.cancel()
+                sources.removeValue(forKey: url)
+            }
+        }
+    }
+
+    func unwatchAll() {
+        for url in Array(sources.keys) {
+            if let entry = sources[url] {
+                entry.source.cancel()
+            }
+        }
+        sources.removeAll()
+        watchedRoots.removeAll()
+    }
+
+    private func watchDirectory(_ url: URL) {
+        guard sources[url] == nil else { return }
+
+        let accessing = url.startAccessingSecurityScopedResource()
+
+        let fd = open(url.path, O_EVTONLY)
         guard fd >= 0 else {
             if accessing {
-                folder.stopAccessingSecurityScopedResource()
+                url.stopAccessingSecurityScopedResource()
             }
+            logger.warning("Failed to open directory for watching: \(url.path)")
             return
         }
 
@@ -37,27 +88,12 @@ final class LibraryWatcher {
         source.setCancelHandler {
             close(fd)
             if accessing {
-                folder.stopAccessingSecurityScopedResource()
+                url.stopAccessingSecurityScopedResource()
             }
         }
 
         source.resume()
-
-        sources[folder] = (source, fd)
-        watchedFolders.insert(folder)
-    }
-
-    func unwatch(folder: URL) {
-        guard let entry = sources[folder] else { return }
-        entry.source.cancel()
-        sources.removeValue(forKey: folder)
-        watchedFolders.remove(folder)
-    }
-
-    func unwatchAll() {
-        for folder in Array(watchedFolders) {
-            unwatch(folder: folder)
-        }
+        sources[url] = (source, fd)
     }
 
     private func handleChange() {
@@ -72,8 +108,6 @@ final class LibraryWatcher {
     }
 
     nonisolated deinit {
-        // DispatchSource cancel handlers will close file descriptors
-        // and stop security-scoped resource access
         MainActor.assumeIsolated {
             for entry in sources.values {
                 entry.source.cancel()

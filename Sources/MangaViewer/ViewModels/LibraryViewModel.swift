@@ -1,6 +1,11 @@
 import AppKit
 import Foundation
+import os.log
 import SwiftData
+
+private let logger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "MangaViewer", category: "LibraryViewModel"
+)
 
 @Observable
 @MainActor
@@ -102,7 +107,7 @@ final class LibraryViewModel {
                     relativeTo: nil
                 )
             } catch {
-                print("Failed to create bookmark for \(book.title): \(error)")
+                logger.error("Failed to create bookmark for \(book.title): \(error)")
             }
 
             if let thumbnailData = await ThumbnailGenerator.generate(from: provider) {
@@ -115,7 +120,7 @@ final class LibraryViewModel {
             modelContext.insert(book)
             try modelContext.save()
         } catch {
-            print("Failed to add book: \(error)")
+            logger.error("Failed to add book: \(error)")
         }
     }
 

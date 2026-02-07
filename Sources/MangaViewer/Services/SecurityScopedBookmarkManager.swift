@@ -1,4 +1,9 @@
 import Foundation
+import os.log
+
+private let logger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "MangaViewer", category: "BookmarkManager"
+)
 
 actor SecurityScopedBookmarkManager {
     static let shared = SecurityScopedBookmarkManager()
@@ -19,8 +24,53 @@ actor SecurityScopedBookmarkManager {
             bookmarks[url.path] = bookmarkData
             saveAllBookmarkData(bookmarks)
         } catch {
-            print("Failed to save bookmark for \(url.path): \(error)")
+            logger.error("Failed to save bookmark for \(url.path): \(error)")
         }
+    }
+
+    struct ResolvedBookmark {
+        let url: URL
+        let bookmarkData: Data
+        let isStale: Bool
+    }
+
+    /// Resolves bookmark data to a security-scoped URL.
+    /// Returns the resolved URL, updated bookmark data (if stale), and starts accessing.
+    func resolveAndAccess(bookmarkData: Data) -> ResolvedBookmark? {
+        var isStale = false
+        let url: URL
+        do {
+            url = try URL(
+                resolvingBookmarkData: bookmarkData,
+                options: .withSecurityScope,
+                relativeTo: nil,
+                bookmarkDataIsStale: &isStale
+            )
+        } catch {
+            logger.error("Failed to resolve bookmark: \(error)")
+            return nil
+        }
+
+        guard url.startAccessingSecurityScopedResource() else {
+            logger.warning("Failed to start accessing security-scoped resource: \(url.path)")
+            return nil
+        }
+        activeURLs.insert(url)
+
+        var updatedData = bookmarkData
+        if isStale {
+            do {
+                updatedData = try url.bookmarkData(
+                    options: .withSecurityScope,
+                    includingResourceValuesForKeys: nil,
+                    relativeTo: nil
+                )
+            } catch {
+                logger.warning("Failed to refresh stale bookmark: \(error)")
+            }
+        }
+
+        return ResolvedBookmark(url: url, bookmarkData: updatedData, isStale: isStale)
     }
 
     /// Returns `(resolvedURL, oldPath)` tuple. `oldPath` is non-nil when the bookmark was stale
@@ -30,44 +80,22 @@ actor SecurityScopedBookmarkManager {
         let bookmarks = loadAllBookmarkData()
         guard let data = bookmarks[path] else { return nil }
 
-        var isStale = false
-        let url: URL
-        do {
-            url = try URL(
-                resolvingBookmarkData: data,
-                options: .withSecurityScope,
-                relativeTo: nil,
-                bookmarkDataIsStale: &isStale
-            )
-        } catch {
-            print("Failed to resolve bookmark for \(path): \(error)")
+        guard let resolved = resolveAndAccess(bookmarkData: data) else {
             return nil
         }
 
         var oldPath: String?
-
-        if isStale {
-            if let newData = try? url.bookmarkData(
-                options: .withSecurityScope,
-                includingResourceValuesForKeys: nil,
-                relativeTo: nil
-            ) {
-                var bookmarks = loadAllBookmarkData()
-                if url.path != path {
-                    bookmarks.removeValue(forKey: path)
-                    oldPath = path
-                }
-                bookmarks[url.path] = newData
-                saveAllBookmarkData(bookmarks)
+        if resolved.isStale {
+            var bookmarks = loadAllBookmarkData()
+            if resolved.url.path != path {
+                bookmarks.removeValue(forKey: path)
+                oldPath = path
             }
+            bookmarks[resolved.url.path] = resolved.bookmarkData
+            saveAllBookmarkData(bookmarks)
         }
 
-        guard url.startAccessingSecurityScopedResource() else {
-            return nil
-        }
-        activeURLs.insert(url)
-
-        return (url, oldPath)
+        return (resolved.url, oldPath)
     }
 
     func stopAccessing(url: URL) {
@@ -106,7 +134,7 @@ actor SecurityScopedBookmarkManager {
             let data = try JSONEncoder().encode(bookmarks)
             UserDefaults.standard.set(data, forKey: bookmarkKey)
         } catch {
-            print("Failed to save bookmarks: \(error)")
+            logger.error("Failed to save bookmarks: \(error)")
         }
     }
 }

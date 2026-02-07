@@ -1,6 +1,11 @@
 import AppKit
 import Foundation
+import os.log
 import SwiftData
+
+private let logger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "MangaViewer", category: "ReaderViewModel"
+)
 
 @Observable
 @MainActor
@@ -42,35 +47,19 @@ final class ReaderViewModel {
             var url = URL(fileURLWithPath: book.filePath)
 
             if let bookmarkData = book.bookmarkData {
-                var isStale = false
-                do {
-                    let resolvedURL = try URL(
-                        resolvingBookmarkData: bookmarkData,
-                        options: .withSecurityScope,
-                        relativeTo: nil,
-                        bookmarkDataIsStale: &isStale
-                    )
-                    if resolvedURL.startAccessingSecurityScopedResource() {
-                        accessingURL = resolvedURL
-                    }
-                    url = resolvedURL
-
-                    if isStale {
-                        do {
-                            book.bookmarkData = try url.bookmarkData(
-                                options: .withSecurityScope,
-                                includingResourceValuesForKeys: nil,
-                                relativeTo: nil
-                            )
-                            if url.path != book.filePath {
-                                book.filePath = url.path
-                            }
-                        } catch {
-                            print("Failed to refresh stale bookmark: \(error)")
+                if let resolved = await SecurityScopedBookmarkManager.shared.resolveAndAccess(
+                    bookmarkData: bookmarkData
+                ) {
+                    accessingURL = resolved.url
+                    url = resolved.url
+                    if resolved.isStale {
+                        book.bookmarkData = resolved.bookmarkData
+                        if resolved.url.path != book.filePath {
+                            book.filePath = resolved.url.path
                         }
                     }
-                } catch {
-                    print("Failed to resolve bookmark for \(book.filePath): \(error)")
+                } else {
+                    logger.warning("Failed to resolve bookmark for \(book.filePath)")
                 }
             }
 
