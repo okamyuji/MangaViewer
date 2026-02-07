@@ -14,6 +14,8 @@ struct ContentView: View {
     @State private var isLoading = false
     @State private var loadingError: String?
     @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
+    @State private var openFileTask: Task<Void, Never>?
+    @State private var openRequestID: Int = 0
 
     var body: some View {
         Group {
@@ -91,6 +93,9 @@ struct ContentView: View {
     }
 
     private func openFileDirectly(_ url: URL) {
+        // Cancel any in-flight open task
+        openFileTask?.cancel()
+
         // Close existing provider/access before opening a new file
         directOpenProvider?.close()
         directOpenProvider = nil
@@ -104,8 +109,10 @@ struct ContentView: View {
 
         let accessing = url.startAccessingSecurityScopedResource()
         let title = url.deletingPathExtension().lastPathComponent
+        openRequestID += 1
+        let requestID = openRequestID
 
-        Task.detached {
+        openFileTask = Task.detached {
             do {
                 let provider = try ArchiveService.provider(for: url)
                 let thumbnail: NSImage? = if provider.pageCount > 0 {
@@ -113,7 +120,17 @@ struct ContentView: View {
                 } else {
                     nil
                 }
+                guard !Task.isCancelled else {
+                    provider.close()
+                    if accessing { url.stopAccessingSecurityScopedResource() }
+                    return
+                }
                 await MainActor.run {
+                    guard self.openRequestID == requestID else {
+                        provider.close()
+                        if accessing { url.stopAccessingSecurityScopedResource() }
+                        return
+                    }
                     self.directOpenProvider = provider
                     self.directOpenTitle = title
                     self.directOpenThumbnail = thumbnail
@@ -123,7 +140,12 @@ struct ContentView: View {
                     self.isLoading = false
                 }
             } catch {
+                guard !Task.isCancelled else {
+                    if accessing { url.stopAccessingSecurityScopedResource() }
+                    return
+                }
                 await MainActor.run {
+                    guard self.openRequestID == requestID else { return }
                     if accessing {
                         url.stopAccessingSecurityScopedResource()
                     }

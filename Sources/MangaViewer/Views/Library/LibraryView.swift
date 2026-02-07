@@ -109,7 +109,7 @@ struct LibraryView: View {
 
     private func deleteBook(_ book: Book) {
         let filePath = book.filePath
-        Task {
+        Task { @MainActor in
             await SecurityScopedBookmarkManager.shared.removeBookmark(for: filePath)
             modelContext.delete(book)
             try? modelContext.save()

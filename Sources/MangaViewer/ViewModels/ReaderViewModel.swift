@@ -313,9 +313,9 @@ final class ReaderViewModel {
         let secondaryImage = await loadImageForPage(secondaryIndex)
         guard !Task.isCancelled else { return }
 
-        // If the secondary image is also wide, don't pair them
-        if let secondary = secondaryImage, isLandscapeImage(secondary) {
-            // Show only primary page; step by 1 so the wide secondary isn't skipped
+        // If the secondary image is also wide, or there is no secondary page,
+        // show only the primary page as a single page display
+        if secondaryImage == nil || (secondaryImage.map { isLandscapeImage($0) } ?? false) {
             displaysSinglePage = true
             let filteredPrimary = primaryImage.map { applyFilters(to: $0) }
             if readingDirection == .rightToLeft {
