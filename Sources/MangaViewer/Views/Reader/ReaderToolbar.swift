@@ -46,6 +46,7 @@ struct CleanSlider: View {
 
 struct ReaderToolbar: View {
     @Bindable var viewModel: ReaderViewModel
+    @State private var showFilterPopover = false
 
     var body: some View {
         HStack(spacing: 16) {
@@ -246,41 +247,72 @@ struct ReaderToolbar: View {
     }
 
     private var filterButton: some View {
-        Menu {
-            VStack {
-                Text("Brightness: \(Int(viewModel.filterSettings.brightness * 100))")
-                Slider(value: $viewModel.filterSettings.brightness, in: -1 ... 1)
-                    .onChange(of: viewModel.filterSettings.brightness) {
-                        viewModel.applyCurrentFilters()
-                    }
-
-                Text("Contrast: \(Int(viewModel.filterSettings.contrast * 100))")
-                Slider(value: $viewModel.filterSettings.contrast, in: 0.5 ... 2)
-                    .onChange(of: viewModel.filterSettings.contrast) {
-                        viewModel.applyCurrentFilters()
-                    }
-
-                Text("Sepia: \(Int(viewModel.filterSettings.sepia * 100))")
-                Slider(value: $viewModel.filterSettings.sepia, in: 0 ... 1)
-                    .onChange(of: viewModel.filterSettings.sepia) {
-                        viewModel.applyCurrentFilters()
-                    }
-
-                Toggle("Grayscale", isOn: $viewModel.filterSettings.grayscale)
-                    .onChange(of: viewModel.filterSettings.grayscale) {
-                        viewModel.applyCurrentFilters()
-                    }
-
-                Button("Reset Filters") {
-                    viewModel.filterSettings = .default
-                    viewModel.applyCurrentFilters()
-                }
-            }
-            .padding()
+        Button {
+            showFilterPopover.toggle()
         } label: {
             Image(systemName: "slider.horizontal.3")
         }
         .help("Image Filters")
+        .popover(isPresented: $showFilterPopover, arrowEdge: .top) {
+            FilterPopoverContent(viewModel: viewModel)
+        }
+    }
+}
+
+private struct FilterPopoverContent: View {
+    @Bindable var viewModel: ReaderViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            filterSlider(
+                label: "Brightness",
+                value: $viewModel.filterSettings.brightness,
+                range: -1.0 ... 1.0
+            )
+
+            filterSlider(
+                label: "Contrast",
+                value: $viewModel.filterSettings.contrast,
+                range: 0.5 ... 2.0
+            )
+
+            filterSlider(
+                label: "Sepia",
+                value: $viewModel.filterSettings.sepia,
+                range: 0.0 ... 1.0
+            )
+
+            Toggle("Grayscale", isOn: $viewModel.filterSettings.grayscale)
+                .onChange(of: viewModel.filterSettings.grayscale) {
+                    viewModel.applyCurrentFilters()
+                }
+
+            Divider()
+
+            Button("Reset Filters") {
+                viewModel.filterSettings = .default
+                viewModel.applyCurrentFilters()
+            }
+            .disabled(viewModel.filterSettings.isDefault)
+        }
+        .padding()
+        .frame(width: 250)
+    }
+
+    private func filterSlider(
+        label: String,
+        value: Binding<Float>,
+        range: ClosedRange<Float>
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("\(label): \(Int(value.wrappedValue * 100))")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Slider(value: value, in: range)
+                .onChange(of: value.wrappedValue) {
+                    viewModel.applyCurrentFilters()
+                }
+        }
     }
 }
 

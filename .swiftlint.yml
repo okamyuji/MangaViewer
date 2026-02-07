@@ -30,6 +30,10 @@ identifier_name:
     error: 60
   allowed_symbols: ["_"]
 
+file_length:
+  warning: 500
+  error: 600
+
 cyclomatic_complexity:
   warning: 20
   error: 30

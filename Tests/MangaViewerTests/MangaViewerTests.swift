@@ -177,6 +177,80 @@ struct ImageFilterSettingsTests {
         settings.brightness = 0.5
         #expect(!settings.isDefault)
     }
+
+    @Test("isDefault detects each modified property")
+    func isDefaultEachProperty() {
+        var s1 = ImageFilterSettings()
+        s1.contrast = 1.5
+        #expect(!s1.isDefault)
+
+        var s2 = ImageFilterSettings()
+        s2.sepia = 0.3
+        #expect(!s2.isDefault)
+
+        var s3 = ImageFilterSettings()
+        s3.grayscale = true
+        #expect(!s3.isDefault)
+    }
+}
+
+@Suite("ImageFilterApplier Tests")
+struct ImageFilterApplierTests {
+    private func createTestImage() -> NSImage {
+        let image = NSImage(size: NSSize(width: 100, height: 100))
+        image.lockFocus()
+        NSColor.red.setFill()
+        NSBezierPath.fill(NSRect(x: 0, y: 0, width: 100, height: 100))
+        image.unlockFocus()
+        return image
+    }
+
+    @Test("Default settings return original image unchanged")
+    func defaultSettingsReturnOriginal() {
+        let original = createTestImage()
+        let result = ImageFilterApplier.apply(.default, to: original)
+        #expect(result === original)
+    }
+
+    @Test("Non-default brightness produces different image")
+    func brightnessApplied() {
+        let original = createTestImage()
+        var settings = ImageFilterSettings()
+        settings.brightness = 0.5
+        let result = ImageFilterApplier.apply(settings, to: original)
+        #expect(result !== original)
+        #expect(result.size == original.size)
+    }
+
+    @Test("Grayscale filter produces different image")
+    func grayscaleApplied() {
+        let original = createTestImage()
+        var settings = ImageFilterSettings()
+        settings.grayscale = true
+        let result = ImageFilterApplier.apply(settings, to: original)
+        #expect(result !== original)
+        #expect(result.size == original.size)
+    }
+
+    @Test("Sepia filter produces different image")
+    func sepiaApplied() {
+        let original = createTestImage()
+        var settings = ImageFilterSettings()
+        settings.sepia = 0.8
+        let result = ImageFilterApplier.apply(settings, to: original)
+        #expect(result !== original)
+        #expect(result.size == original.size)
+    }
+
+    @Test("Contrast filter produces different image")
+    func contrastApplied() {
+        let original = createTestImage()
+        var settings = ImageFilterSettings()
+        settings.contrast = 2.0
+        let result = ImageFilterApplier.apply(settings, to: original)
+        #expect(result !== original)
+        #expect(result.size == original.size)
+    }
 }
 
 @Suite("ReaderViewModel Tests")
