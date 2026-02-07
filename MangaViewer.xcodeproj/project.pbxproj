@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 63;
+	objectVersion = 77;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -66,7 +66,7 @@
 		0C467151AF87E6CFC1FD1E2B /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		135990D263ACA2F70D882570 /* ImageCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageCache.swift; sourceTree = "<group>"; };
 		138FC10BB63DC86935844539 /* ZipExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZipExtractor.swift; sourceTree = "<group>"; };
-		15FF20FC943EC52B78AE71A9 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		15FF20FC943EC52B78AE71A9 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		1BD023EFA5937F053C686434 /* ReaderViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderViewModel.swift; sourceTree = "<group>"; };
 		21AA470EDEBC8CBBA6ABBA3A /* RarExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RarExtractor.swift; sourceTree = "<group>"; };
 		27D52A1D7F10C2F69105FBB1 /* LibraryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryViewModel.swift; sourceTree = "<group>"; };
@@ -75,6 +75,7 @@
 		316BC069B3F2C1CB982E02AA /* ZoomMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoomMode.swift; sourceTree = "<group>"; };
 		343EB2CC8DA99B96ED5C15D6 /* ReaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderView.swift; sourceTree = "<group>"; };
 		3C5C3FC83DA027EB0FF03F2E /* Tag.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tag.swift; sourceTree = "<group>"; };
+		42896C312CD92E99D67810AD /* Local.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Local.xcconfig; sourceTree = "<group>"; };
 		4BD7F4B6A388A709050ED0B4 /* ReadingDirection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingDirection.swift; sourceTree = "<group>"; };
 		4C3A5AB6F778DEA8FEDE0F0B /* Bookmark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Bookmark.swift; sourceTree = "<group>"; };
 		505C26A07F6997CE577BFCF8 /* ImageFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageFilter.swift; sourceTree = "<group>"; };
@@ -140,7 +141,7 @@
 			path = Reader;
 			sourceTree = "<group>";
 		};
-		3086A88FAF8333EA03BCE1DF /* MangaViewer */ = {
+		1A2B73A31D741259867EE432 /* MangaViewer */ = {
 			isa = PBXGroup;
 			children = (
 				AC1F0AA90AC81F718CD857D2 /* MangaViewerApp.swift */,
@@ -152,6 +153,15 @@
 			);
 			name = MangaViewer;
 			path = Sources/MangaViewer;
+			sourceTree = "<group>";
+		};
+		3086A88FAF8333EA03BCE1DF /* MangaViewer */ = {
+			isa = PBXGroup;
+			children = (
+				42896C312CD92E99D67810AD /* Local.xcconfig */,
+			);
+			name = MangaViewer;
+			path = .;
 			sourceTree = "<group>";
 		};
 		4A3B9D336DCBF9D475B64280 /* Settings */ = {
@@ -196,6 +206,7 @@
 			isa = PBXGroup;
 			children = (
 				3086A88FAF8333EA03BCE1DF /* MangaViewer */,
+				1A2B73A31D741259867EE432 /* MangaViewer */,
 				E1D181EE8DF9B2E11C1F5290 /* MangaViewerTests */,
 				6E99EFAD696F5E124103264A /* Resources */,
 				D0A5DA23BB18281F1CB8E34E /* Products */,
@@ -314,6 +325,7 @@
 				LastUpgradeCheck = 1600;
 				TargetAttributes = {
 					2297F2AC26143B184FF346BF = {
+						DevelopmentTeam = P2HW44ZU6P;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -332,6 +344,7 @@
 				FB0EFE5C2A5EED73DA8BAE3D /* XCRemoteSwiftPackageReference "Unrar.swift" */,
 				F6B563D399D078F150B8B5DC /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
 			);
+			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -452,12 +465,12 @@
 		};
 		3D005BDE2CFA258321556ED8 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 42896C312CD92E99D67810AD /* Local.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = MangaViewer.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = P2HW44ZU6P;
 				ENABLE_UPCOMING_FEATURE_STRICT_CONCURRENCY = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Info.plist;
@@ -470,7 +483,7 @@
 				SDKROOT = macosx;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_STRICT_CONCURRENCY = complete;
-				SWIFT_VERSION = 5.9;
+				SWIFT_VERSION = 6;
 			};
 			name = Release;
 		};
@@ -532,12 +545,12 @@
 		};
 		BBCD790D9ABA82CB524EEECD /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 42896C312CD92E99D67810AD /* Local.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = MangaViewer.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = P2HW44ZU6P;
 				ENABLE_UPCOMING_FEATURE_STRICT_CONCURRENCY = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Info.plist;
@@ -550,7 +563,7 @@
 				SDKROOT = macosx;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_STRICT_CONCURRENCY = complete;
-				SWIFT_VERSION = 5.9;
+				SWIFT_VERSION = 6;
 			};
 			name = Debug;
 		};

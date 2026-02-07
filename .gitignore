@@ -45,6 +45,9 @@ Resources/AppIcon.iconset/
 *.zip
 *.tar.gz
 
+# Local build settings (contains DEVELOPMENT_TEAM)
+Local.xcconfig
+
 # Secrets and credentials
 *.pem
 *.p12

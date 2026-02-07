@@ -25,6 +25,9 @@ targets:
       - package: ZIPFoundation
       - package: Unrar.swift
         product: Unrar
+    configFiles:
+      Debug: Local.xcconfig
+      Release: Local.xcconfig
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: work.okamyuji.mangaviewer

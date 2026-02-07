@@ -10,6 +10,7 @@ struct ContentView: View {
     @State private var directOpenProvider: PageProvider?
     @State private var directOpenTitle: String?
     @State private var directOpenThumbnail: NSImage?
+    @State private var directOpenAccessingURL: URL?
     @State private var isLoading = false
     @State private var loadingError: String?
     @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
@@ -27,6 +28,10 @@ struct ContentView: View {
                             directOpenProvider = nil
                             directOpenTitle = nil
                             directOpenThumbnail = nil
+                            if let url = directOpenAccessingURL {
+                                url.stopAccessingSecurityScopedResource()
+                                directOpenAccessingURL = nil
+                            }
                         }
                     )
                 }
@@ -90,6 +95,7 @@ struct ContentView: View {
         loadingError = nil
 
         Task { @MainActor in
+            let accessing = url.startAccessingSecurityScopedResource()
             do {
                 let provider = try ArchiveService.provider(for: url)
                 // Load first page as thumbnail
@@ -100,8 +106,14 @@ struct ContentView: View {
                 directOpenProvider = provider
                 directOpenTitle = url.deletingPathExtension().lastPathComponent
                 directOpenThumbnail = thumbnail
+                if accessing {
+                    directOpenAccessingURL = url
+                }
                 isLoading = false
             } catch {
+                if accessing {
+                    url.stopAccessingSecurityScopedResource()
+                }
                 isLoading = false
                 loadingError = error.localizedDescription
             }

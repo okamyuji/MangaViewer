@@ -94,8 +94,8 @@ final class ReaderViewModel {
             await loadCurrentPage()
         } catch {
             if let url = accessingURL {
-                url.stopAccessingSecurityScopedResource()
                 accessingURL = nil
+                await SecurityScopedBookmarkManager.shared.stopAccessing(url: url)
             }
             errorMessage = error.localizedDescription
         }
@@ -129,8 +129,10 @@ final class ReaderViewModel {
         imageCache.clear()
 
         if let url = accessingURL {
-            url.stopAccessingSecurityScopedResource()
             accessingURL = nil
+            Task {
+                await SecurityScopedBookmarkManager.shared.stopAccessing(url: url)
+            }
         }
     }
 
