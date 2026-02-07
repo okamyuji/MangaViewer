@@ -1,66 +1,64 @@
-import Combine
 import Foundation
 
 @Observable
 final class LibraryWatcher {
-    private var streams: [URL: FSEventStreamRef] = [:]
+    private var sources: [URL: (source: any DispatchSourceFileSystemObject, fd: Int32)] = [:]
     private var watchedFolders: Set<URL> = []
-    private let debounceInterval: TimeInterval = 1.0
+    private let debounceInterval: TimeInterval = 2.0
     private var debounceWorkItem: DispatchWorkItem?
 
     var onFilesChanged: (() -> Void)?
 
     func watch(folder: URL) {
         guard !watchedFolders.contains(folder) else { return }
-        watchedFolders.insert(folder)
 
-        let path = folder.path as CFString
-        let pathsToWatch = [path] as CFArray
+        let accessing = folder.startAccessingSecurityScopedResource()
 
-        var context = FSEventStreamContext()
-        context.info = Unmanaged.passUnretained(self).toOpaque()
-
-        guard
-            let stream = FSEventStreamCreate(
-                nil,
-                { _, contextInfo, _, _, _, _ in
-                    guard let contextInfo else { return }
-                    let watcher = Unmanaged<LibraryWatcher>.fromOpaque(contextInfo).takeUnretainedValue()
-                    watcher.handleEvents()
-                },
-                &context,
-                pathsToWatch,
-                FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
-                debounceInterval,
-                FSEventStreamCreateFlags(
-                    kFSEventStreamCreateFlagUseCFTypes | kFSEventStreamCreateFlagFileEvents
-                )
-            )
-        else {
+        let fd = open(folder.path, O_EVTONLY)
+        guard fd >= 0 else {
+            if accessing {
+                folder.stopAccessingSecurityScopedResource()
+            }
             return
         }
 
-        FSEventStreamSetDispatchQueue(stream, DispatchQueue.main)
-        FSEventStreamStart(stream)
-        streams[folder] = stream
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: fd,
+            eventMask: [.write, .rename, .delete, .extend],
+            queue: .main
+        )
+
+        source.setEventHandler { [weak self] in
+            self?.handleChange()
+        }
+
+        source.setCancelHandler {
+            close(fd)
+            if accessing {
+                folder.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        source.resume()
+
+        sources[folder] = (source, fd)
+        watchedFolders.insert(folder)
     }
 
     func unwatch(folder: URL) {
-        guard let stream = streams[folder] else { return }
-        FSEventStreamStop(stream)
-        FSEventStreamInvalidate(stream)
-        FSEventStreamRelease(stream)
-        streams.removeValue(forKey: folder)
+        guard let entry = sources[folder] else { return }
+        entry.source.cancel()
+        sources.removeValue(forKey: folder)
         watchedFolders.remove(folder)
     }
 
     func unwatchAll() {
-        for folder in watchedFolders {
+        for folder in Array(watchedFolders) {
             unwatch(folder: folder)
         }
     }
 
-    private func handleEvents() {
+    private func handleChange() {
         debounceWorkItem?.cancel()
 
         let workItem = DispatchWorkItem { [weak self] in
