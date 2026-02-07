@@ -79,6 +79,10 @@ final class ReaderViewModel {
 
             await loadCurrentPage()
         } catch {
+            if let url = accessingURL {
+                url.stopAccessingSecurityScopedResource()
+                accessingURL = nil
+            }
             errorMessage = error.localizedDescription
         }
 
