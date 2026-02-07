@@ -180,14 +180,14 @@ struct ImageFilterSettingsTests {
 }
 
 @Suite("ImageFilterApplier Tests")
+@MainActor
 struct ImageFilterApplierTests {
     private func createTestImage() -> NSImage {
-        let image = NSImage(size: NSSize(width: 100, height: 100))
-        image.lockFocus()
-        NSColor.red.setFill()
-        NSBezierPath.fill(NSRect(x: 0, y: 0, width: 100, height: 100))
-        image.unlockFocus()
-        return image
+        NSImage(size: NSSize(width: 100, height: 100), flipped: false) { rect in
+            NSColor.red.setFill()
+            NSBezierPath.fill(rect)
+            return true
+        }
     }
 
     @Test("Default settings return original image unchanged")

@@ -63,27 +63,7 @@ final class ReaderViewModel {
         errorMessage = nil
 
         do {
-            var url = URL(fileURLWithPath: book.filePath)
-
-            if let bookmarkData = book.bookmarkData {
-                if let resolved = await SecurityScopedBookmarkManager.shared.resolveAndAccess(
-                    bookmarkData: bookmarkData
-                ) {
-                    accessingURL = resolved.url
-                    url = resolved.url
-                    if resolved.isStale {
-                        book.bookmarkData = resolved.bookmarkData
-                        if resolved.url.path != book.filePath {
-                            book.filePath = resolved.url.path
-                        }
-                    }
-                } else {
-                    logger.warning("Failed to resolve bookmark for \(book.filePath)")
-                    errorMessage = "ファイルへのアクセス権が失われました。再度ファイルをライブラリに追加してください。"
-                    isLoading = false
-                    return
-                }
-            }
+            let url = try await resolveBookURL(book)
 
             provider = try ArchiveService.provider(for: url)
             totalPages = provider?.pageCount ?? 0
@@ -109,6 +89,41 @@ final class ReaderViewModel {
         }
 
         isLoading = false
+    }
+
+    private func resolveBookURL(_ book: Book) async throws -> URL {
+        var url = URL(fileURLWithPath: book.filePath)
+
+        if let bookmarkData = book.bookmarkData {
+            guard let resolved = await SecurityScopedBookmarkManager.shared.resolveAndAccess(
+                bookmarkData: bookmarkData
+            ) else {
+                logger.warning("Failed to resolve bookmark for \(book.filePath)")
+                errorMessage = "ファイルへのアクセス権が失われました。再度ファイルをライブラリに追加してください。"
+                isLoading = false
+                throw MangaViewerError.archiveNotFound
+            }
+            accessingURL = resolved.url
+            url = resolved.url
+            if resolved.isStale {
+                book.bookmarkData = resolved.bookmarkData
+                if resolved.url.path != book.filePath {
+                    book.filePath = resolved.url.path
+                }
+            }
+        } else {
+            do {
+                book.bookmarkData = try url.bookmarkData(
+                    options: .withSecurityScope,
+                    includingResourceValuesForKeys: nil,
+                    relativeTo: nil
+                )
+            } catch {
+                logger.info("Could not create bookmark for \(book.filePath): \(error)")
+            }
+        }
+
+        return url
     }
 
     func openProvider(_ pageProvider: PageProvider, title _: String) async {

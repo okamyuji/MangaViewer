@@ -50,10 +50,12 @@ struct BookGridItem: View {
                 )
             }
 
-            Divider()
+            if let onDelete {
+                Divider()
 
-            Button("Delete", role: .destructive) {
-                onDelete?()
+                Button("Delete", role: .destructive) {
+                    onDelete()
+                }
             }
         }
     }
