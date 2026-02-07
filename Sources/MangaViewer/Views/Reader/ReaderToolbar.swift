@@ -246,6 +246,7 @@ struct ReaderToolbar: View {
 
 private struct FilterPopoverContent: View {
     @Bindable var viewModel: ReaderViewModel
+    @State private var filterDebounceTask: Task<Void, Never>?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -284,6 +285,15 @@ private struct FilterPopoverContent: View {
         .frame(width: 250)
     }
 
+    private func debouncedApplyFilters() {
+        filterDebounceTask?.cancel()
+        filterDebounceTask = Task {
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled else { return }
+            viewModel.applyCurrentFilters()
+        }
+    }
+
     private func filterSlider(
         label: String,
         value: Binding<Float>,
@@ -295,7 +305,7 @@ private struct FilterPopoverContent: View {
                 .foregroundStyle(.secondary)
             Slider(value: value, in: range)
                 .onChange(of: value.wrappedValue) {
-                    viewModel.applyCurrentFilters()
+                    debouncedApplyFilters()
                 }
         }
     }

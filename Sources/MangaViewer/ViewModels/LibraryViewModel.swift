@@ -142,6 +142,8 @@ final class LibraryViewModel {
     private func restoreWatchedFolders() async {
         let urls = await settingsViewModel.restoreWatchedFolderAccess()
         for url in urls {
+            // Stop the BookmarkManager's access since the watcher manages its own access
+            await SecurityScopedBookmarkManager.shared.stopAccessing(url: url)
             libraryWatcher.watch(folder: url)
             await scanFolder(url)
         }

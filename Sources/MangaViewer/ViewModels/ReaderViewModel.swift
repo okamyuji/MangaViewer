@@ -42,6 +42,7 @@ final class ReaderViewModel {
 
     private var accessingURL: URL?
     private var loadingTask: Task<Void, Never>?
+    private var toastTask: Task<Void, Never>?
 
     func openBook(_ book: Book, modelContext: ModelContext) async {
         if let previousURL = accessingURL {
@@ -72,6 +73,9 @@ final class ReaderViewModel {
                     }
                 } else {
                     logger.warning("Failed to resolve bookmark for \(book.filePath)")
+                    errorMessage = "ファイルへのアクセス権が失われました。再度ファイルをライブラリに追加してください。"
+                    isLoading = false
+                    return
                 }
             }
 
@@ -127,6 +131,7 @@ final class ReaderViewModel {
     }
 
     func nextPage() {
+        guard totalPages > 0 else { return }
         let newPage = min(currentPage + currentStep, totalPages - 1)
         if newPage != currentPage {
             currentPage = newPage
@@ -135,6 +140,7 @@ final class ReaderViewModel {
     }
 
     func previousPage() {
+        guard totalPages > 0 else { return }
         let newPage = max(currentPage - currentStep, 0)
         if newPage != currentPage {
             currentPage = newPage
@@ -212,10 +218,12 @@ final class ReaderViewModel {
     }
 
     private func showToast(_ message: String) {
+        toastTask?.cancel()
         bookmarkToastMessage = message
         showBookmarkToast = true
-        Task {
+        toastTask = Task {
             try? await Task.sleep(for: .seconds(1.5))
+            guard !Task.isCancelled else { return }
             showBookmarkToast = false
         }
     }

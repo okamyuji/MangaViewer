@@ -53,12 +53,22 @@ final class SettingsViewModel {
 
     func restoreWatchedFolderAccess() async -> [URL] {
         var urls: [URL] = []
-        for folder in watchedFolders {
+        var folders = watchedFolders
+        var updated = false
+        for (index, folder) in folders.enumerated() {
             if let result = await SecurityScopedBookmarkManager.shared.startAccessing(
                 path: folder.path
             ) {
                 urls.append(result.url)
+                if let oldPath = result.oldPath, result.url != folder {
+                    folders[index] = result.url
+                    updated = true
+                    _ = oldPath // Consumed by bookmark manager internally
+                }
             }
+        }
+        if updated {
+            watchedFolders = folders
         }
         return urls
     }

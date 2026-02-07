@@ -19,7 +19,7 @@ final class LibraryWatcher {
     func watch(folder: URL) {
         guard !watchedRoots.contains(folder) else { return }
         watchedRoots.insert(folder)
-        watchDirectory(folder)
+        watchDirectoryRecursively(folder)
     }
 
     func unwatch(folder: URL) {
@@ -39,6 +39,25 @@ final class LibraryWatcher {
         }
         sources.removeAll()
         watchedRoots.removeAll()
+    }
+
+    private func watchDirectoryRecursively(_ url: URL) {
+        watchDirectory(url)
+
+        // Watch subdirectories recursively
+        let fm = FileManager.default
+        guard let enumerator = fm.enumerator(
+            at: url,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) else { return }
+
+        for case let subURL as URL in enumerator {
+            var isDir: ObjCBool = false
+            if fm.fileExists(atPath: subURL.path, isDirectory: &isDir), isDir.boolValue {
+                watchDirectory(subURL)
+            }
+        }
     }
 
     private func watchDirectory(_ url: URL) {
@@ -88,10 +107,7 @@ final class LibraryWatcher {
     }
 
     nonisolated deinit {
-        MainActor.assumeIsolated {
-            for entry in sources.values {
-                entry.source.cancel()
-            }
-        }
+        // DispatchSource cancel handlers handle fd close and resource cleanup
+        // Sources are cleaned up via unwatchAll() during app lifecycle
     }
 }

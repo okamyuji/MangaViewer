@@ -89,7 +89,7 @@ struct ContentView: View {
         isLoading = true
         loadingError = nil
 
-        Task {
+        Task { @MainActor in
             do {
                 let provider = try ArchiveService.provider(for: url)
                 // Load first page as thumbnail
