@@ -121,12 +121,15 @@ actor SecurityScopedBookmarkManager {
     // MARK: - Private
 
     private func loadAllBookmarkData() -> [String: Data] {
-        guard let data = UserDefaults.standard.data(forKey: bookmarkKey),
-              let bookmarks = try? JSONDecoder().decode([String: Data].self, from: data)
-        else {
+        guard let data = UserDefaults.standard.data(forKey: bookmarkKey) else {
             return [:]
         }
-        return bookmarks
+        do {
+            return try JSONDecoder().decode([String: Data].self, from: data)
+        } catch {
+            logger.error("Failed to decode bookmark data: \(error)")
+            return [:]
+        }
     }
 
     private func saveAllBookmarkData(_ bookmarks: [String: Data]) {
