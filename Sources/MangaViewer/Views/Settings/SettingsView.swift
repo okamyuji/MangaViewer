@@ -73,7 +73,9 @@ struct SettingsView: View {
                             .truncationMode(.middle)
                         Spacer()
                         Button {
-                            viewModel.removeWatchedFolder(folder)
+                            Task {
+                                await viewModel.removeWatchedFolder(folder)
+                            }
                         } label: {
                             Image(systemName: "xmark.circle.fill")
                                 .foregroundStyle(.secondary)
@@ -98,7 +100,9 @@ struct SettingsView: View {
         panel.allowsMultipleSelection = false
 
         if panel.runModal() == .OK, let url = panel.url {
-            viewModel.addWatchedFolder(url)
+            Task {
+                await viewModel.addWatchedFolder(url)
+            }
         }
     }
 }

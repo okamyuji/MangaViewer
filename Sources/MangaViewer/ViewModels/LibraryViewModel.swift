@@ -38,7 +38,7 @@ final class LibraryViewModel {
         }
 
         if isDirectory.boolValue {
-            SecurityScopedBookmarkManager.shared.saveBookmark(for: url)
+            await SecurityScopedBookmarkManager.shared.saveBookmark(for: url)
             await scanFolder(url)
         } else {
             await addBook(at: url)
@@ -119,8 +119,8 @@ final class LibraryViewModel {
         }
     }
 
-    func removeBook(_ book: Book) {
-        SecurityScopedBookmarkManager.shared.removeBookmark(for: book.filePath)
+    func removeBook(_ book: Book) async {
+        await SecurityScopedBookmarkManager.shared.removeBookmark(for: book.filePath)
         modelContext.delete(book)
         try? modelContext.save()
     }

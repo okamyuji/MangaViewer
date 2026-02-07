@@ -3,6 +3,7 @@ import Foundation
 import SwiftUI
 
 @Observable
+@MainActor
 final class SettingsViewModel {
     @ObservationIgnored
     @AppStorage("defaultReadingDirection")
@@ -42,8 +43,8 @@ final class SettingsViewModel {
         }
     }
 
-    func addWatchedFolder(_ url: URL) {
-        SecurityScopedBookmarkManager.shared.saveBookmark(for: url)
+    func addWatchedFolder(_ url: URL) async {
+        await SecurityScopedBookmarkManager.shared.saveBookmark(for: url)
         var folders = watchedFolders
         if !folders.contains(url) {
             folders.append(url)
@@ -51,17 +52,23 @@ final class SettingsViewModel {
         }
     }
 
-    func removeWatchedFolder(_ url: URL) {
-        SecurityScopedBookmarkManager.shared.removeBookmark(for: url.path)
-        SecurityScopedBookmarkManager.shared.stopAccessing(url: url)
+    func removeWatchedFolder(_ url: URL) async {
+        await SecurityScopedBookmarkManager.shared.removeBookmark(for: url.path)
+        await SecurityScopedBookmarkManager.shared.stopAccessing(url: url)
         var folders = watchedFolders
         folders.removeAll { $0 == url }
         watchedFolders = folders
     }
 
-    func restoreWatchedFolderAccess() -> [URL] {
-        watchedFolders.compactMap { folder in
-            SecurityScopedBookmarkManager.shared.startAccessing(path: folder.path)
+    func restoreWatchedFolderAccess() async -> [URL] {
+        var urls: [URL] = []
+        for folder in watchedFolders {
+            if let result = await SecurityScopedBookmarkManager.shared.startAccessing(
+                path: folder.path
+            ) {
+                urls.append(result.url)
+            }
         }
+        return urls
     }
 }

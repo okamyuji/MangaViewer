@@ -62,6 +62,9 @@ final class ReaderViewModel {
                                 includingResourceValuesForKeys: nil,
                                 relativeTo: nil
                             )
+                            if url.path != book.filePath {
+                                book.filePath = url.path
+                            }
                         } catch {
                             print("Failed to refresh stale bookmark: \(error)")
                         }

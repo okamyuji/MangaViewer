@@ -2,6 +2,7 @@ import Darwin
 import Foundation
 
 @Observable
+@MainActor
 final class LibraryWatcher {
     private var sources: [URL: (source: any DispatchSourceFileSystemObject, fd: Int32)] = [:]
     private var watchedFolders: Set<URL> = []
@@ -70,7 +71,13 @@ final class LibraryWatcher {
         DispatchQueue.main.asyncAfter(deadline: .now() + debounceInterval, execute: workItem)
     }
 
-    deinit {
-        unwatchAll()
+    nonisolated deinit {
+        // DispatchSource cancel handlers will close file descriptors
+        // and stop security-scoped resource access
+        MainActor.assumeIsolated {
+            for entry in sources.values {
+                entry.source.cancel()
+            }
+        }
     }
 }

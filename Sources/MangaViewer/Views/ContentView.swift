@@ -29,7 +29,11 @@ struct ContentView: View {
                             directOpenTitle = nil
                             directOpenThumbnail = nil
                             if let url = directOpenURL {
-                                SecurityScopedBookmarkManager.shared.removeBookmark(for: url.path)
+                                Task {
+                                    await SecurityScopedBookmarkManager.shared.removeBookmark(
+                                        for: url.path
+                                    )
+                                }
                                 directOpenURL = nil
                             }
                         }
@@ -94,9 +98,9 @@ struct ContentView: View {
         isLoading = true
         loadingError = nil
 
-        SecurityScopedBookmarkManager.shared.saveBookmark(for: url)
-
         Task {
+            await SecurityScopedBookmarkManager.shared.saveBookmark(for: url)
+
             do {
                 let provider = try ArchiveService.provider(for: url)
                 // Load first page as thumbnail
@@ -104,18 +108,14 @@ struct ContentView: View {
                 if provider.pageCount > 0 {
                     thumbnail = try? await provider.image(at: 0)
                 }
-                await MainActor.run {
-                    directOpenProvider = provider
-                    directOpenTitle = url.deletingPathExtension().lastPathComponent
-                    directOpenThumbnail = thumbnail
-                    directOpenURL = url
-                    isLoading = false
-                }
+                directOpenProvider = provider
+                directOpenTitle = url.deletingPathExtension().lastPathComponent
+                directOpenThumbnail = thumbnail
+                directOpenURL = url
+                isLoading = false
             } catch {
-                await MainActor.run {
-                    isLoading = false
-                    loadingError = error.localizedDescription
-                }
+                isLoading = false
+                loadingError = error.localizedDescription
             }
         }
     }
