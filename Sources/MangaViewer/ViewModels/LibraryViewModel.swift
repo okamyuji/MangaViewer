@@ -68,6 +68,16 @@ final class LibraryViewModel {
     }
 
     private func scanFolder(_ folderURL: URL) async {
+        // Pre-fetch all existing file paths to avoid O(N^2) per-file queries
+        let existingPaths: Set<String>
+        do {
+            let descriptor = FetchDescriptor<Book>()
+            let allBooks = try modelContext.fetch(descriptor)
+            existingPaths = Set(allBooks.map(\.filePath))
+        } catch {
+            existingPaths = []
+        }
+
         let fileManager = FileManager.default
         guard
             let enumerator = fileManager.enumerator(
@@ -81,6 +91,9 @@ final class LibraryViewModel {
 
         let urls = enumerator.compactMap { $0 as? URL }
         for fileURL in urls where ArchiveService.bookType(for: fileURL) != nil {
+            if existingPaths.contains(fileURL.path) {
+                continue
+            }
             await addBook(at: fileURL)
         }
 
@@ -88,19 +101,6 @@ final class LibraryViewModel {
     }
 
     private func addBook(at url: URL) async {
-        let filePath = url.path
-
-        do {
-            let descriptor = FetchDescriptor<Book>()
-            let allBooks = try modelContext.fetch(descriptor)
-            let existingBook = allBooks.first { $0.filePath == filePath }
-            if existingBook != nil {
-                return
-            }
-        } catch {
-            return
-        }
-
         guard let bookType = ArchiveService.bookType(for: url) else {
             return
         }

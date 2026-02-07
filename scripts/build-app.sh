@@ -42,13 +42,14 @@ if [ -f "Resources/PrivacyInfo.xcprivacy" ]; then
     echo "📎 Added privacy manifest"
 fi
 
-# Generate Info.plist by substituting Xcode build-setting placeholders with concrete values
-sed \
-    -e "s/\$(EXECUTABLE_NAME)/${APP_NAME}/g" \
-    -e "s/\$(PRODUCT_BUNDLE_IDENTIFIER)/work.okamyuji.mangaviewer/g" \
-    -e "s/\$(PRODUCT_NAME)/${APP_NAME}/g" \
-    -e "s/\$(MACOSX_DEPLOYMENT_TARGET)/14.0/g" \
-    "Info.plist" > "${APP_BUNDLE}/Contents/Info.plist"
+# Generate Info.plist using PlistBuddy to safely set concrete values
+PLIST="${APP_BUNDLE}/Contents/Info.plist"
+cp "Info.plist" "${PLIST}"
+BUDDY=/usr/libexec/PlistBuddy
+${BUDDY} -c "Set :CFBundleExecutable ${APP_NAME}" "${PLIST}"
+${BUDDY} -c "Set :CFBundleIdentifier work.okamyuji.mangaviewer" "${PLIST}"
+${BUDDY} -c "Set :CFBundleName ${APP_NAME}" "${PLIST}"
+${BUDDY} -c "Set :LSMinimumSystemVersion 14.0" "${PLIST}"
 
 # Create PkgInfo
 echo -n "APPL????" > "${APP_BUNDLE}/Contents/PkgInfo"

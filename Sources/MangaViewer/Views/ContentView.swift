@@ -94,28 +94,34 @@ struct ContentView: View {
         isLoading = true
         loadingError = nil
 
-        Task { @MainActor in
-            let accessing = url.startAccessingSecurityScopedResource()
+        let accessing = url.startAccessingSecurityScopedResource()
+        let title = url.deletingPathExtension().lastPathComponent
+
+        Task.detached {
             do {
                 let provider = try ArchiveService.provider(for: url)
-                // Load first page as thumbnail
-                var thumbnail: NSImage?
-                if provider.pageCount > 0 {
-                    thumbnail = try? await provider.image(at: 0)
+                let thumbnail: NSImage? = if provider.pageCount > 0 {
+                    try? await provider.image(at: 0)
+                } else {
+                    nil
                 }
-                directOpenProvider = provider
-                directOpenTitle = url.deletingPathExtension().lastPathComponent
-                directOpenThumbnail = thumbnail
-                if accessing {
-                    directOpenAccessingURL = url
+                await MainActor.run {
+                    self.directOpenProvider = provider
+                    self.directOpenTitle = title
+                    self.directOpenThumbnail = thumbnail
+                    if accessing {
+                        self.directOpenAccessingURL = url
+                    }
+                    self.isLoading = false
                 }
-                isLoading = false
             } catch {
-                if accessing {
-                    url.stopAccessingSecurityScopedResource()
+                await MainActor.run {
+                    if accessing {
+                        url.stopAccessingSecurityScopedResource()
+                    }
+                    self.isLoading = false
+                    self.loadingError = error.localizedDescription
                 }
-                isLoading = false
-                loadingError = error.localizedDescription
             }
         }
     }
