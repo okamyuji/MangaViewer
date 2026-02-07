@@ -40,6 +40,22 @@ struct ReaderView: View {
                 handleKeyCode(keyCode)
             }
             .frame(width: 0, height: 0)
+
+            if viewModel.showBookmarkToast {
+                VStack {
+                    Spacer()
+                    HStack {
+                        Image(systemName: "bookmark.fill")
+                        Text(viewModel.bookmarkToastMessage)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .padding(.bottom, 60)
+                }
+                .animation(.easeInOut(duration: 0.3), value: viewModel.showBookmarkToast)
+            }
         }
         .navigationTitle(book?.title ?? bookTitle ?? "Reader")
         .navigationBarBackButtonHidden(viewModel.isFullScreen)
@@ -67,9 +83,13 @@ struct ReaderView: View {
         }
     }
 
+    private var hasVisibleImage: Bool {
+        viewModel.spreadImages.left != nil || viewModel.spreadImages.right != nil
+    }
+
     @ViewBuilder
     private var contentView: some View {
-        if viewModel.isLoading && viewModel.currentImage == nil {
+        if viewModel.isLoading && !hasVisibleImage {
             ProgressView("Loading...")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let errorMessage = viewModel.errorMessage {
@@ -88,20 +108,6 @@ struct ReaderView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            pageContent
-        }
-    }
-
-    @ViewBuilder
-    private var pageContent: some View {
-        switch viewModel.displayMode {
-        case .single:
-            PageView(
-                image: viewModel.currentImage,
-                zoomMode: viewModel.zoomMode,
-                zoomScale: $viewModel.zoomScale
-            )
-        case .spread:
             SpreadView(
                 leftImage: viewModel.spreadImages.left,
                 rightImage: viewModel.spreadImages.right,
@@ -118,8 +124,6 @@ struct ReaderView: View {
     private static let keyCodeSpace: UInt16 = 49
     private static let keyCodeEscape: UInt16 = 53
     private static let keyCodeF: UInt16 = 3
-    private static let keyCode1: UInt16 = 18
-    private static let keyCode2: UInt16 = 19
     private static let keyCodeB: UInt16 = 11
     private static let keyCode0: UInt16 = 29
     private static let keyCodeEqual: UInt16 = 24
@@ -151,16 +155,8 @@ struct ReaderView: View {
             viewModel.toggleFullScreen()
             return true
 
-        case Self.keyCode1:
-            viewModel.displayMode = .single
-            return true
-
-        case Self.keyCode2:
-            viewModel.displayMode = .spread
-            return true
-
         case Self.keyCodeB:
-            viewModel.addBookmark()
+            viewModel.toggleBookmark()
             return true
 
         case Self.keyCode0:

@@ -121,7 +121,10 @@ extension Color {
     }
 
     func toHex() -> String? {
-        guard let components = NSColor(self).cgColor.components else { return nil }
+        guard let rgbColor = NSColor(self).usingColorSpace(.sRGB),
+              let components = rgbColor.cgColor.components,
+              components.count >= 3
+        else { return nil }
         let red = Int(components[0] * 255)
         let green = Int(components[1] * 255)
         let blue = Int(components[2] * 255)

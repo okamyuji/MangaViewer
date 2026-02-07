@@ -3,7 +3,7 @@
 import AppKit
 import Foundation
 
-// Icon sizes required for macOS app icons
+/// Icon sizes required for macOS app icons
 let sizes: [(size: Int, scale: Int, suffix: String)] = [
     (16, 1, "16x16"),
     (16, 2, "16x16@2x"),

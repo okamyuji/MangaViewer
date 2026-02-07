@@ -1,12 +1,15 @@
 # MangaViewer
 
-macOS向けSwiftUI製漫画ビューワーアプリケーション。
+macOS向けSwiftUI製漫画ビューワーアプリケーション。Mac App Store対応。
 
 ## 概要
 
 - **対応OS**: macOS 14 (Sonoma) 以降
 - **フレームワーク**: SwiftUI, SwiftData
 - **アーキテクチャ**: Modern MVVM with @Observable
+- **Swift**: 6.0（Strict Concurrency有効）
+- **App Sandbox**: 対応済み（セキュリティスコープブックマークによるファイルアクセス永続化）
+- **バンドルID**: `work.okamyuji.mangaviewer`
 
 ## 機能
 
@@ -28,11 +31,12 @@ macOS向けSwiftUI製漫画ビューワーアプリケーション。
 
 ### ライブラリ機能
 
-- フォルダ監視による自動検知
+- フォルダ監視による自動検知（DispatchSource）
 - サムネイル一覧表示
 - 既読管理
 - タグ付け
 - 検索・ソート
+- Finderからのダブルクリック / ドラッグ＆ドロップ対応
 
 ## アーキテクチャ
 
@@ -60,52 +64,75 @@ flowchart TB
 
 ```shell
 MangaViewer/
-├── MangaViewerApp.swift
-├── Info.plist
-├── Assets.xcassets/
+├── Package.swift                    # SPMパッケージ定義
+├── project.yml                      # XcodeGen設定
+├── Info.plist                       # アプリ情報
+├── MangaViewer.entitlements         # App Sandboxエンタイトルメント
+├── Local.xcconfig.template          # ビルド設定テンプレート
 │
-├── Models/
-│   ├── Book.swift
-│   ├── ReadingProgress.swift
-│   ├── Bookmark.swift
-│   └── Tag.swift
+├── Sources/MangaViewer/
+│   ├── MangaViewerApp.swift
+│   │
+│   ├── Models/
+│   │   ├── Book.swift
+│   │   ├── BookType.swift
+│   │   ├── ReadingProgress.swift
+│   │   ├── Bookmark.swift
+│   │   └── Tag.swift
+│   │
+│   ├── Services/
+│   │   ├── ArchiveService.swift
+│   │   ├── ZipExtractor.swift
+│   │   ├── RarExtractor.swift
+│   │   ├── FolderLoader.swift
+│   │   ├── ImageCache.swift
+│   │   ├── ImageFileFilter.swift
+│   │   ├── LibraryWatcher.swift
+│   │   ├── MangaViewerError.swift
+│   │   ├── PageProvider.swift
+│   │   ├── SecurityScopedBookmarkManager.swift
+│   │   └── ThumbnailGenerator.swift
+│   │
+│   ├── ViewModels/
+│   │   ├── LibraryViewModel.swift
+│   │   ├── ReaderViewModel.swift
+│   │   └── SettingsViewModel.swift
+│   │
+│   ├── Views/
+│   │   ├── ContentView.swift
+│   │   ├── Library/
+│   │   │   ├── LibraryView.swift
+│   │   │   ├── BookGridItem.swift
+│   │   │   ├── SidebarView.swift
+│   │   │   └── TagSidebar.swift
+│   │   ├── Reader/
+│   │   │   ├── ReaderView.swift
+│   │   │   ├── SpreadView.swift
+│   │   │   ├── ZoomableImageView.swift
+│   │   │   ├── ReaderToolbar.swift
+│   │   │   └── KeyboardHandlerView.swift
+│   │   └── Settings/
+│   │       └── SettingsView.swift
+│   │
+│   └── Utilities/
+│       ├── Constants.swift
+│       ├── ImageFilter.swift
+│       ├── ReadingDirection.swift
+│       ├── SortOrder.swift
+│       └── ZoomMode.swift
 │
-├── Services/
-│   ├── ArchiveService.swift
-│   ├── ZipExtractor.swift
-│   ├── RarExtractor.swift
-│   ├── FolderLoader.swift
-│   ├── ImageCache.swift
-│   ├── LibraryWatcher.swift
-│   └── ThumbnailGenerator.swift
+├── Tests/MangaViewerTests/
 │
-├── ViewModels/
-│   ├── LibraryViewModel.swift
-│   ├── ReaderViewModel.swift
-│   └── SettingsViewModel.swift
+├── Resources/
+│   ├── Assets.xcassets/             # アプリアイコン
+│   └── PrivacyInfo.xcprivacy        # プライバシーマニフェスト
 │
-├── Views/
-│   ├── MainWindow.swift
-│   ├── Library/
-│   │   ├── LibraryView.swift
-│   │   ├── BookGridItem.swift
-│   │   └── TagSidebar.swift
-│   ├── Reader/
-│   │   ├── ReaderView.swift
-│   │   ├── PageView.swift
-│   │   ├── SpreadView.swift
-│   │   ├── ZoomableImageView.swift
-│   │   └── ReaderToolbar.swift
-│   └── Settings/
-│       └── SettingsView.swift
+├── scripts/
+│   └── build-app.sh                 # SPMリリースビルド＋.app作成
 │
-├── Utilities/
-│   ├── KeyboardHandler.swift
-│   ├── ImageFilter.swift
-│   └── Constants.swift
-│
-└── Resources/
-    └── Localizable.strings
+└── fastlane/
+    ├── Appfile
+    └── Fastfile
 ```
 
 ## データモデル
@@ -121,6 +148,7 @@ erDiagram
         String title
         String filePath
         Data thumbnailData
+        Data bookmarkData
         Date addedAt
         Date lastOpenedAt
         Int totalPages
@@ -146,6 +174,30 @@ erDiagram
         String name
         String colorHex
     }
+```
+
+## セットアップ
+
+### ビルド設定
+
+XcodeGen + Local.xcconfigでチームIDなどの環境依存設定を管理しています。
+
+```bash
+# テンプレートからLocal.xcconfigを作成
+cp Local.xcconfig.template Local.xcconfig
+
+# DEVELOPMENT_TEAMを自分のチームIDに変更
+# Local.xcconfigはgitignoreされています
+```
+
+### Xcodeプロジェクト生成
+
+```bash
+# XcodeGenでプロジェクトを生成
+xcodegen generate
+
+# Xcodeで開く
+open MangaViewer.xcodeproj
 ```
 
 ## 開発コマンド
@@ -192,30 +244,33 @@ swift test --filter ImageFileFilterTests
 swift test --verbose
 ```
 
-### Linter (SwiftLint)
+### Linter / Formatter
 
 ```bash
-# Lintチェック（警告・エラー表示）
-swiftlint lint
-
-# 静かに実行（エラーのみ表示）
+# SwiftLint: Lintチェック
 swiftlint lint --quiet
 
-# 自動修正可能な問題を修正
-swiftlint lint --fix
-```
-
-### Formatter
-
-```bash
-# SwiftLintで自動修正
+# SwiftLint: 自動修正
 swiftlint lint --fix
 
-# SwiftFormatを使用する場合（要インストール: brew install swiftformat）
+# SwiftFormat: フォーマット
 swiftformat .
 
-# ドライラン（変更を表示するのみ）
+# SwiftFormat: ドライラン（変更を表示するのみ）
 swiftformat . --dryrun
+```
+
+### Fastlane
+
+```bash
+# 依存関係インストール
+bundle install
+
+# テスト実行
+bundle exec fastlane test
+
+# リリースビルド
+bundle exec fastlane build
 ```
 
 ### クリーン
@@ -241,55 +296,21 @@ swift package resolve
 swift package show-dependencies
 ```
 
-## アプリバンドル (.app)
+## App Sandbox
 
-### バンドル構造
+Mac App Store配布のためApp Sandboxに対応しています。
 
-```shell
-MangaViewer.app/
-└── Contents/
-    ├── Info.plist          # アプリ設定・ファイル関連付け
-    ├── PkgInfo             # パッケージタイプ識別子
-    ├── MacOS/
-    │   └── MangaViewer     # 実行ファイル
-    └── Resources/
-        └── ZIPFoundation_ZIPFoundation.bundle/
-```
+### エンタイトルメント
 
-### 使用方法
+| キー | 用途 |
+| ---- | ---- |
+| `com.apple.security.app-sandbox` | App Sandbox有効化 |
+| `com.apple.security.files.user-selected.read-write` | NSOpenPanelで選択したファイルへのアクセス |
+| `com.apple.security.files.bookmarks.app-scope` | セキュリティスコープブックマークで再起動後もアクセス維持 |
 
-| 操作 | コマンド |
-| ---- | ------- |
-| アプリをビルド | `./scripts/build-app.sh` |
-| アプリを起動 | `open .build/release/MangaViewer.app` |
-| Applicationsにインストール | `cp -R .build/release/MangaViewer.app /Applications/` |
+### セキュリティスコープブックマーク
 
-### Info.plistの機能
-
-- **ファイル関連付け**: `.cbz`, `.zip`, `.cbr`, `.rar` をダブルクリックで開ける
-- **macOS 14+対応**: `LSMinimumSystemVersion`
-- **Retina対応**: `NSHighResolutionCapable`
-
-## 依存ライブラリ
-
-| ライブラリ | 用途 | リポジトリ |
-| --------- | ---- | --------- |
-| ZIPFoundation | ZIP/CBZ展開 | <https://github.com/weichsel/ZIPFoundation> |
-
-### RAR/CBR対応について
-
-RAR/CBRファイルの展開には、以下のいずれかのコマンドラインツールが必要です：
-
-```bash
-# 推奨: unar (The Unarchiver)
-brew install unar
-
-# 代替: 7-Zip
-brew install p7zip
-
-# 代替: unrar
-brew install unrar
-```
+`SecurityScopedBookmarkManager`（actor）がブックマークの保存・復元・アクセス管理を担当。ユーザーが選択したファイル/フォルダへのアクセスをアプリ再起動後も維持します。
 
 ## キーボードショートカット
 
@@ -324,10 +345,11 @@ brew install unrar
 
 ## 画像キャッシュ戦略
 
-- **実装**: NSCache
+- **実装**: NSCache + ImageCacheActor（Swift Concurrency対応）
 - **最大容量**: 50枚 or 500MB
 - **先読み**: 現在ページの前後3ページ
 - **優先度**: 現在ページ > 次ページ > 前ページ > ...
+- **世代管理**: ブック切替時にキャッシュを無効化
 
 ## 画像フィルタ
 
@@ -337,6 +359,13 @@ brew install unrar
 | Contrast | CIColorControls | 0.5 ~ 2.0 |
 | Sepia | CISepiaTone | 0.0 ~ 1.0 |
 | Grayscale | CIPhotoEffectMono | - |
+
+## 依存ライブラリ
+
+| ライブラリ | 用途 | リポジトリ |
+| --------- | ---- | --------- |
+| ZIPFoundation | ZIP/CBZ展開 | <https://github.com/weichsel/ZIPFoundation> |
+| Unrar.swift | RAR/CBR展開 | <https://github.com/mtgto/Unrar.swift> |
 
 ## ライセンス
 

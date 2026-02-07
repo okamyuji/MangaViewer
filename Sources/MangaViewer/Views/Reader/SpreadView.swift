@@ -7,14 +7,24 @@ struct SpreadView: View {
     let zoomMode: ZoomMode
     @Binding var zoomScale: CGFloat
 
+    private var isSinglePage: Bool {
+        (leftImage != nil && rightImage == nil) || (leftImage == nil && rightImage != nil)
+    }
+
     var body: some View {
         GeometryReader { geometry in
-            HStack(spacing: 0) {
-                pageView(for: leftImage, width: geometry.size.width / 2)
-                pageView(for: rightImage, width: geometry.size.width / 2)
+            if isSinglePage {
+                // Single page: use full width (landscape spread or last remaining page)
+                let image = leftImage ?? rightImage
+                pageView(for: image, width: geometry.size.width)
+            } else {
+                HStack(spacing: 0) {
+                    pageView(for: leftImage, width: geometry.size.width / 2)
+                    pageView(for: rightImage, width: geometry.size.width / 2)
+                }
             }
-            .background(Color(nsColor: .windowBackgroundColor))
         }
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 
     @ViewBuilder

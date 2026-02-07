@@ -1,0 +1,37 @@
+default_platform(:mac)
+
+platform :mac do
+  desc "Generate Xcode project from project.yml"
+  lane :generate do
+    sh("cd .. && xcodegen generate")
+  end
+
+  desc "Run tests"
+  lane :test do
+    sh("cd .. && xcodebuild -project MangaViewer.xcodeproj -scheme MangaViewerTests -configuration Debug test")
+  end
+
+  desc "Run linter and formatter checks"
+  lane :lint do
+    sh("cd .. && swiftlint lint --quiet")
+    sh("cd .. && swiftformat . --dryrun")
+  end
+
+  desc "Build release"
+  lane :build do
+    sh("cd .. && xcodebuild -project MangaViewer.xcodeproj -scheme MangaViewer -configuration Release build")
+  end
+
+  desc "Archive for App Store"
+  lane :archive do
+    sh("cd .. && xcodebuild -project MangaViewer.xcodeproj -scheme MangaViewer -configuration Release archive -archivePath build/MangaViewer.xcarchive")
+  end
+
+  desc "Full CI pipeline: generate, lint, test, build"
+  lane :ci do
+    generate
+    lint
+    test
+    build
+  end
+end

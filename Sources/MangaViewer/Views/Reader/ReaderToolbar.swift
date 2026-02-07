@@ -46,6 +46,7 @@ struct CleanSlider: View {
 
 struct ReaderToolbar: View {
     @Bindable var viewModel: ReaderViewModel
+    @State private var showFilterPopover = false
 
     var body: some View {
         HStack(spacing: 16) {
@@ -54,7 +55,7 @@ struct ReaderToolbar: View {
             Divider()
                 .frame(height: 20)
 
-            displayModeControls
+            readingDirectionMenu
 
             Divider()
                 .frame(height: 20)
@@ -96,6 +97,7 @@ struct ReaderToolbar: View {
                     step: 1
                 )
                 .frame(width: 150)
+                .disabled(viewModel.totalPages <= 1)
 
                 Text("\(viewModel.currentPage + 1) / \(viewModel.totalPages)")
                     .monospacedDigit()
@@ -130,6 +132,7 @@ struct ReaderToolbar: View {
                     step: 1
                 )
                 .frame(width: 150)
+                .disabled(viewModel.totalPages <= 1)
 
                 Button {
                     viewModel.nextPage()
@@ -141,32 +144,17 @@ struct ReaderToolbar: View {
         }
     }
 
-    private var displayModeControls: some View {
-        HStack(spacing: 4) {
-            ForEach(DisplayMode.allCases) { mode in
+    private var readingDirectionMenu: some View {
+        Menu {
+            ForEach(ReadingDirection.allCases) { direction in
                 Button {
-                    viewModel.displayMode = mode
+                    viewModel.setReadingDirection(direction)
                 } label: {
-                    Image(systemName: mode.icon)
+                    Label(direction.label, systemImage: direction.icon)
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(viewModel.displayMode == mode ? .primary : .secondary)
             }
-
-            Divider()
-                .frame(height: 16)
-
-            Menu {
-                ForEach(ReadingDirection.allCases) { direction in
-                    Button {
-                        viewModel.readingDirection = direction
-                    } label: {
-                        Label(direction.label, systemImage: direction.icon)
-                    }
-                }
-            } label: {
-                Image(systemName: viewModel.readingDirection.icon)
-            }
+        } label: {
+            Image(systemName: viewModel.readingDirection.icon)
         }
     }
 
@@ -204,37 +192,128 @@ struct ReaderToolbar: View {
     }
 
     private var bookmarkButton: some View {
-        Button {
-            viewModel.addBookmark()
-        } label: {
-            Image(systemName: "bookmark")
+        HStack(spacing: 4) {
+            Button {
+                viewModel.toggleBookmark()
+            } label: {
+                Image(
+                    systemName: viewModel.hasBookmarkOnCurrentPage
+                        ? "bookmark.fill" : "bookmark"
+                )
+            }
+            .disabled(!viewModel.canBookmark)
+            .help(
+                viewModel.canBookmark
+                    ? (viewModel.hasBookmarkOnCurrentPage ? "Remove Bookmark (B)" : "Add Bookmark (B)")
+                    : "Bookmarks unavailable for direct opens"
+            )
+
+            if viewModel.canBookmark {
+                Menu {
+                    if viewModel.sortedBookmarks.isEmpty {
+                        Text("No bookmarks")
+                    } else {
+                        ForEach(viewModel.sortedBookmarks, id: \.id) { bookmark in
+                            Button {
+                                viewModel.goToBookmark(bookmark)
+                            } label: {
+                                Label(
+                                    "Page \(bookmark.pageNumber + 1)",
+                                    systemImage: "bookmark"
+                                )
+                            }
+                        }
+                    }
+                } label: {
+                    Image(systemName: "list.bullet")
+                        .font(.caption)
+                }
+                .help("Bookmark List")
+            }
         }
-        .help("Add Bookmark (B)")
     }
 
     private var filterButton: some View {
-        Menu {
-            VStack {
-                Text("Brightness: \(Int(viewModel.filterSettings.brightness * 100))")
-                Slider(value: $viewModel.filterSettings.brightness, in: -1 ... 1)
-
-                Text("Contrast: \(Int(viewModel.filterSettings.contrast * 100))")
-                Slider(value: $viewModel.filterSettings.contrast, in: 0.5 ... 2)
-
-                Text("Sepia: \(Int(viewModel.filterSettings.sepia * 100))")
-                Slider(value: $viewModel.filterSettings.sepia, in: 0 ... 1)
-
-                Toggle("Grayscale", isOn: $viewModel.filterSettings.grayscale)
-
-                Button("Reset Filters") {
-                    viewModel.filterSettings = .default
-                }
-            }
-            .padding()
+        Button {
+            showFilterPopover.toggle()
         } label: {
             Image(systemName: "slider.horizontal.3")
         }
         .help("Image Filters")
+        .popover(isPresented: $showFilterPopover, arrowEdge: .top) {
+            FilterPopoverContent(viewModel: viewModel)
+        }
+    }
+}
+
+private struct FilterPopoverContent: View {
+    @Bindable var viewModel: ReaderViewModel
+    @State private var filterDebounceTask: Task<Void, Never>?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            filterSlider(
+                label: "Brightness",
+                value: $viewModel.filterSettings.brightness,
+                range: -1.0 ... 1.0
+            )
+
+            filterSlider(
+                label: "Contrast",
+                value: $viewModel.filterSettings.contrast,
+                range: 0.5 ... 2.0
+            )
+
+            filterSlider(
+                label: "Sepia",
+                value: $viewModel.filterSettings.sepia,
+                range: 0.0 ... 1.0
+            )
+
+            Toggle("Grayscale", isOn: $viewModel.filterSettings.grayscale)
+                .onChange(of: viewModel.filterSettings.grayscale) {
+                    viewModel.applyCurrentFilters()
+                }
+
+            Divider()
+
+            Button("Reset Filters") {
+                viewModel.filterSettings = .default
+                viewModel.applyCurrentFilters()
+            }
+            .disabled(viewModel.filterSettings.isDefault)
+        }
+        .padding()
+        .frame(width: 250)
+        .onDisappear {
+            filterDebounceTask?.cancel()
+            filterDebounceTask = nil
+        }
+    }
+
+    private func debouncedApplyFilters() {
+        filterDebounceTask?.cancel()
+        filterDebounceTask = Task {
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled else { return }
+            viewModel.applyCurrentFilters()
+        }
+    }
+
+    private func filterSlider(
+        label: String,
+        value: Binding<Float>,
+        range: ClosedRange<Float>
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("\(label): \(Int(value.wrappedValue * 100))")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Slider(value: value, in: range)
+                .onChange(of: value.wrappedValue) {
+                    debouncedApplyFilters()
+                }
+        }
     }
 }
 

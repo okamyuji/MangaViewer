@@ -10,9 +10,12 @@ struct ContentView: View {
     @State private var directOpenProvider: PageProvider?
     @State private var directOpenTitle: String?
     @State private var directOpenThumbnail: NSImage?
+    @State private var directOpenAccessingURL: URL?
     @State private var isLoading = false
     @State private var loadingError: String?
     @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
+    @State private var openFileTask: Task<Void, Never>?
+    @State private var openRequestID: Int = 0
 
     var body: some View {
         Group {
@@ -27,6 +30,10 @@ struct ContentView: View {
                             directOpenProvider = nil
                             directOpenTitle = nil
                             directOpenThumbnail = nil
+                            if let url = directOpenAccessingURL {
+                                url.stopAccessingSecurityScopedResource()
+                                directOpenAccessingURL = nil
+                            }
                         }
                     )
                 }
@@ -86,28 +93,58 @@ struct ContentView: View {
     }
 
     private func openFileDirectly(_ url: URL) {
+        // Cancel any in-flight open task
+        openFileTask?.cancel()
+
+        // Close existing provider/access before opening a new file
+        directOpenProvider?.close()
+        directOpenProvider = nil
+        if let previousURL = directOpenAccessingURL {
+            previousURL.stopAccessingSecurityScopedResource()
+            directOpenAccessingURL = nil
+        }
+
         isLoading = true
         loadingError = nil
 
-        Task {
-            do {
-                let provider = try ArchiveService.provider(for: url)
-                // Load first page as thumbnail
-                var thumbnail: NSImage?
-                if provider.pageCount > 0 {
-                    thumbnail = try? await provider.image(at: 0)
+        let accessing = url.startAccessingSecurityScopedResource()
+        let title = url.deletingPathExtension().lastPathComponent
+        openRequestID += 1
+        let requestID = openRequestID
+
+        // Outer Task inherits MainActor; inner detached task avoids capturing self
+        openFileTask = Task {
+            let result: Result<(PageProvider, NSImage?), Error> = await Task.detached {
+                do {
+                    let provider = try ArchiveService.provider(for: url)
+                    var thumbnail: NSImage?
+                    if provider.pageCount > 0 {
+                        thumbnail = try? await provider.image(at: 0)
+                    }
+                    return .success((provider, thumbnail))
+                } catch {
+                    return .failure(error)
                 }
-                await MainActor.run {
-                    directOpenProvider = provider
-                    directOpenTitle = url.deletingPathExtension().lastPathComponent
-                    directOpenThumbnail = thumbnail
-                    isLoading = false
-                }
-            } catch {
-                await MainActor.run {
-                    isLoading = false
-                    loadingError = error.localizedDescription
-                }
+            }.value
+
+            // Back on MainActor - check cancellation and stale request
+            guard !Task.isCancelled, openRequestID == requestID else {
+                if case let .success((provider, _)) = result { provider.close() }
+                if accessing { url.stopAccessingSecurityScopedResource() }
+                return
+            }
+
+            switch result {
+            case let .success((provider, thumbnail)):
+                directOpenProvider = provider
+                directOpenTitle = title
+                directOpenThumbnail = thumbnail
+                if accessing { directOpenAccessingURL = url }
+                isLoading = false
+            case let .failure(error):
+                if accessing { url.stopAccessingSecurityScopedResource() }
+                isLoading = false
+                loadingError = error.localizedDescription
             }
         }
     }

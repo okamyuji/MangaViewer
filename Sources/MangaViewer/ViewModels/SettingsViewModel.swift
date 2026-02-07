@@ -2,15 +2,16 @@ import AppKit
 import Foundation
 import SwiftUI
 
+extension Notification.Name {
+    static let watchedFolderRemoved = Notification.Name("MangaViewerWatchedFolderRemoved")
+}
+
 @Observable
+@MainActor
 final class SettingsViewModel {
     @ObservationIgnored
     @AppStorage("defaultReadingDirection")
     private var storedReadingDirection: String = ReadingDirection.rightToLeft.rawValue
-
-    @ObservationIgnored
-    @AppStorage("defaultDisplayMode") private var storedDisplayMode: String = DisplayMode.spread
-        .rawValue
 
     @ObservationIgnored
     @AppStorage("defaultZoomMode") private var storedZoomMode: String = ZoomMode.fitPage.rawValue
@@ -21,11 +22,6 @@ final class SettingsViewModel {
     var readingDirection: ReadingDirection {
         get { ReadingDirection(rawValue: storedReadingDirection) ?? .rightToLeft }
         set { storedReadingDirection = newValue.rawValue }
-    }
-
-    var displayMode: DisplayMode {
-        get { DisplayMode(rawValue: storedDisplayMode) ?? .spread }
-        set { storedDisplayMode = newValue.rawValue }
     }
 
     var zoomMode: ZoomMode {
@@ -42,7 +38,8 @@ final class SettingsViewModel {
         }
     }
 
-    func addWatchedFolder(_ url: URL) {
+    func addWatchedFolder(_ url: URL) async {
+        await SecurityScopedBookmarkManager.shared.saveBookmark(for: url)
         var folders = watchedFolders
         if !folders.contains(url) {
             folders.append(url)
@@ -50,9 +47,33 @@ final class SettingsViewModel {
         }
     }
 
-    func removeWatchedFolder(_ url: URL) {
+    func removeWatchedFolder(_ url: URL) async {
+        await SecurityScopedBookmarkManager.shared.removeBookmark(for: url.path)
+        await SecurityScopedBookmarkManager.shared.stopAccessing(url: url)
         var folders = watchedFolders
         folders.removeAll { $0 == url }
         watchedFolders = folders
+        NotificationCenter.default.post(name: .watchedFolderRemoved, object: url)
+    }
+
+    func restoreWatchedFolderAccess() async -> [URL] {
+        var urls: [URL] = []
+        var folders = watchedFolders
+        var updated = false
+        for (index, folder) in folders.enumerated() {
+            if let result = await SecurityScopedBookmarkManager.shared.startAccessing(
+                path: folder.path
+            ) {
+                urls.append(result.url)
+                if result.oldPath != nil {
+                    folders[index] = result.url
+                    updated = true
+                }
+            }
+        }
+        if updated {
+            watchedFolders = folders
+        }
+        return urls
     }
 }

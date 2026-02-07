@@ -37,57 +37,77 @@ struct SidebarView: View {
     }
 
     var body: some View {
-        List(selection: $selectedBook) {
-            // Library Section with books
-            Section("Library") {
-                ForEach(filteredBooks) { book in
-                    BookRow(book: book)
-                        .tag(book)
-                        .contextMenu {
-                            Button("Delete", role: .destructive) {
-                                deleteBook(book)
-                            }
-                        }
-                }
-            }
-
-            // Tags Section
-            Section("Tags") {
-                Button {
-                    selectedTag = nil
-                } label: {
-                    Label("All Books", systemImage: "books.vertical")
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(selectedTag == nil ? .primary : .secondary)
-
-                ForEach(tags) { tag in
+        VStack(spacing: 0) {
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                    .font(.callout)
+                TextField("Search", text: $searchText)
+                    .textFieldStyle(.plain)
+                if !searchText.isEmpty {
                     Button {
-                        selectedTag = tag
+                        searchText = ""
                     } label: {
-                        Label(tag.name, systemImage: "tag")
-                            .foregroundStyle(Color(hex: tag.colorHex) ?? .accentColor)
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(selectedTag?.id == tag.id ? .primary : .secondary)
-                    .contextMenu {
-                        Button("Delete", role: .destructive) {
-                            deleteTag(tag)
-                        }
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+
+            List(selection: $selectedBook) {
+                // Library Section with books
+                Section("Library") {
+                    ForEach(filteredBooks) { book in
+                        BookRow(book: book)
+                            .tag(book)
+                            .contextMenu {
+                                Button("Delete", role: .destructive) {
+                                    deleteBook(book)
+                                }
+                            }
                     }
                 }
 
-                Button {
-                    showAddTagSheet = true
-                } label: {
-                    Label("Add Tag", systemImage: "plus")
+                // Tags Section
+                Section("Tags") {
+                    Button {
+                        selectedTag = nil
+                    } label: {
+                        Label("All Books", systemImage: "books.vertical")
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(selectedTag == nil ? .primary : .secondary)
+
+                    ForEach(tags) { tag in
+                        Button {
+                            selectedTag = tag
+                        } label: {
+                            Label(tag.name, systemImage: "tag")
+                                .foregroundStyle(Color(hex: tag.colorHex) ?? .accentColor)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(selectedTag?.id == tag.id ? .primary : .secondary)
+                        .contextMenu {
+                            Button("Delete", role: .destructive) {
+                                deleteTag(tag)
+                            }
+                        }
+                    }
+
+                    Button {
+                        showAddTagSheet = true
+                    } label: {
+                        Label("Add Tag", systemImage: "plus")
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
             }
+            .listStyle(.sidebar)
         }
-        .listStyle(.sidebar)
-        .searchable(text: $searchText, prompt: "Search")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -132,8 +152,12 @@ struct SidebarView: View {
     }
 
     private func deleteBook(_ book: Book) {
-        modelContext.delete(book)
-        try? modelContext.save()
+        let filePath = book.filePath
+        Task { @MainActor in
+            await SecurityScopedBookmarkManager.shared.removeBookmark(for: filePath)
+            modelContext.delete(book)
+            try? modelContext.save()
+        }
     }
 
     private func deleteTag(_ tag: Tag) {
@@ -158,7 +182,7 @@ struct SidebarView: View {
             guard response == .OK else { return }
 
             Task { @MainActor in
-                let viewModel = LibraryViewModel(modelContext: modelContext)
+                let viewModel = LibraryViewModel(modelContext: modelContext, startWatching: false)
                 for url in panel.urls {
                     await viewModel.addFolder(url)
                 }

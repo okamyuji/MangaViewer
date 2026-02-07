@@ -3,6 +3,15 @@ import Foundation
 
 actor ImageCacheActor {
     private var prefetchTasks: [Int: Task<Void, Never>] = [:]
+    private var generation: Int = 0
+
+    func currentGeneration() -> Int {
+        generation
+    }
+
+    func incrementGeneration() {
+        generation += 1
+    }
 
     func cancelOutOfRangeTasks(currentIndex: Int, prefetchCount: Int) {
         for existingIndex in prefetchTasks.keys where abs(existingIndex - currentIndex) > prefetchCount {
@@ -52,6 +61,7 @@ final class ImageCache: @unchecked Sendable {
 
     func prefetch(around index: Int, totalPages: Int, using provider: PageProvider) {
         Task {
+            let currentGen = await actor.currentGeneration()
             await actor.cancelOutOfRangeTasks(currentIndex: index, prefetchCount: prefetchCount)
 
             let indicesToPrefetch = prefetchIndices(around: index, totalPages: totalPages)
@@ -68,7 +78,8 @@ final class ImageCache: @unchecked Sendable {
                     guard let self else { return }
                     do {
                         let image = try await provider.image(at: prefetchIndex)
-                        if !Task.isCancelled {
+                        let gen = await self.actor.currentGeneration()
+                        if !Task.isCancelled, gen == currentGen {
                             self.set(image, for: prefetchIndex)
                         }
                     } catch {
@@ -103,10 +114,9 @@ final class ImageCache: @unchecked Sendable {
         return indices
     }
 
-    func clear() {
-        Task {
-            await actor.cancelAllTasks()
-        }
+    func clear() async {
+        await actor.incrementGeneration()
+        await actor.cancelAllTasks()
         cache.removeAllObjects()
     }
 }

@@ -1,6 +1,11 @@
 import AppKit
 import Foundation
+import os.log
 import SwiftData
+
+private let logger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "MangaViewer", category: "ReaderViewModel"
+)
 
 @Observable
 @MainActor
@@ -8,23 +13,49 @@ final class ReaderViewModel {
     var currentBook: Book?
     var currentPage: Int = 0
     var totalPages: Int = 0
-    var displayMode: DisplayMode = .spread
     var readingDirection: ReadingDirection = .rightToLeft
     var zoomMode: ZoomMode = .fitPage
     var zoomScale: CGFloat = 1.0
     var filterSettings: ImageFilterSettings = .default
     var isFullScreen: Bool = false
 
-    var currentImage: NSImage?
     var spreadImages: (left: NSImage?, right: NSImage?) = (nil, nil)
     var isLoading: Bool = false
     var errorMessage: String?
+    var showBookmarkToast: Bool = false
+    var bookmarkToastMessage: String = ""
+
+    var canBookmark: Bool {
+        currentBook != nil
+    }
+
+    var hasBookmarkOnCurrentPage: Bool {
+        currentBook?.bookmarks.contains { $0.pageNumber == currentPage } ?? false
+    }
+
+    /// Whether the current spread display is showing a single wide (landscape) page
+    private(set) var isCurrentPageWide: Bool = false
+    /// Whether the display is showing a single page (wide primary or wide secondary)
+    private var displaysSinglePage: Bool = false
 
     private var provider: PageProvider?
     private let imageCache = ImageCache()
     private var modelContext: ModelContext?
 
+    private var accessingURL: URL?
+    private var loadingTask: Task<Void, Never>?
+    private var toastTask: Task<Void, Never>?
+
     func openBook(_ book: Book, modelContext: ModelContext) async {
+        loadingTask?.cancel()
+        loadingTask = nil
+
+        if let previousURL = accessingURL {
+            previousURL.stopAccessingSecurityScopedResource()
+            accessingURL = nil
+        }
+
+        await imageCache.clear()
         self.modelContext = modelContext
         currentBook = book
         currentPage = book.progress?.currentPage ?? 0
@@ -32,19 +63,67 @@ final class ReaderViewModel {
         errorMessage = nil
 
         do {
-            let url = URL(fileURLWithPath: book.filePath)
+            let url = try await resolveBookURL(book)
+
             provider = try ArchiveService.provider(for: url)
             totalPages = provider?.pageCount ?? 0
+
+            if totalPages == 0 {
+                provider?.close()
+                provider = nil
+                errorMessage = "このファイルには表示可能なページがありません。"
+                isLoading = false
+                return
+            }
 
             book.lastOpenedAt = Date()
             try? modelContext.save()
 
             await loadCurrentPage()
         } catch {
+            if let url = accessingURL {
+                accessingURL = nil
+                await SecurityScopedBookmarkManager.shared.stopAccessing(url: url)
+            }
             errorMessage = error.localizedDescription
         }
 
         isLoading = false
+    }
+
+    private func resolveBookURL(_ book: Book) async throws -> URL {
+        var url = URL(fileURLWithPath: book.filePath)
+
+        if let bookmarkData = book.bookmarkData {
+            guard let resolved = await SecurityScopedBookmarkManager.shared.resolveAndAccess(
+                bookmarkData: bookmarkData
+            ) else {
+                logger.warning("Failed to resolve bookmark for \(book.filePath)")
+                errorMessage = "ファイルへのアクセス権が失われました。再度ファイルをライブラリに追加してください。"
+                isLoading = false
+                throw MangaViewerError.archiveNotFound
+            }
+            accessingURL = resolved.url
+            url = resolved.url
+            if resolved.isStale {
+                book.bookmarkData = resolved.bookmarkData
+                if resolved.url.path != book.filePath {
+                    book.filePath = resolved.url.path
+                }
+            }
+        } else {
+            do {
+                book.bookmarkData = try url.bookmarkData(
+                    options: .withSecurityScope,
+                    includingResourceValuesForKeys: nil,
+                    relativeTo: nil
+                )
+            } catch {
+                logger.info("Could not create bookmark for \(book.filePath): \(error)")
+            }
+        }
+
+        return url
     }
 
     func openProvider(_ pageProvider: PageProvider, title _: String) async {
@@ -60,52 +139,102 @@ final class ReaderViewModel {
     }
 
     func closeBook() {
+        loadingTask?.cancel()
+        loadingTask = nil
+        toastTask?.cancel()
+        toastTask = nil
+
         saveProgress()
         provider?.close()
         provider = nil
         currentBook = nil
-        currentImage = nil
         spreadImages = (nil, nil)
-        imageCache.clear()
+        isLoading = false
+
+        let cache = imageCache
+        let url = accessingURL
+        accessingURL = nil
+
+        Task {
+            await cache.clear()
+            if let url {
+                await SecurityScopedBookmarkManager.shared.stopAccessing(url: url)
+            }
+        }
+    }
+
+    private var currentStep: Int {
+        displaysSinglePage ? 1 : 2
     }
 
     func nextPage() {
-        let step = displayMode == .spread ? 2 : 1
-        let newPage = min(currentPage + step, totalPages - 1)
+        guard totalPages > 0 else { return }
+        let newPage = min(currentPage + currentStep, totalPages - 1)
         if newPage != currentPage {
             currentPage = newPage
-            Task { await loadCurrentPage() }
+            scheduleLoadPage()
         }
     }
 
     func previousPage() {
-        let step = displayMode == .spread ? 2 : 1
-        let newPage = max(currentPage - step, 0)
+        guard totalPages > 0 else { return }
+        let newPage = max(currentPage - currentStep, 0)
         if newPage != currentPage {
             currentPage = newPage
-            Task { await loadCurrentPage() }
+            scheduleLoadPage()
         }
     }
 
     func goToPage(_ page: Int) {
+        guard totalPages > 0 else { return }
         let clampedPage = max(0, min(page, totalPages - 1))
         if clampedPage != currentPage {
             currentPage = clampedPage
-            Task { await loadCurrentPage() }
+            scheduleLoadPage()
         }
     }
 
-    func toggleDisplayMode() {
-        displayMode = displayMode == .single ? .spread : .single
-        Task { await loadCurrentPage() }
+    func setReadingDirection(_ direction: ReadingDirection) {
+        guard direction != readingDirection else { return }
+        readingDirection = direction
+        scheduleLoadPage()
+    }
+
+    func applyCurrentFilters() {
+        scheduleLoadPage()
+    }
+
+    private func scheduleLoadPage() {
+        loadingTask?.cancel()
+        loadingTask = Task { await loadCurrentPage() }
     }
 
     func toggleFullScreen() {
         isFullScreen.toggle()
     }
 
+    var sortedBookmarks: [Bookmark] {
+        currentBook?.bookmarks.sorted { $0.pageNumber < $1.pageNumber } ?? []
+    }
+
+    func toggleBookmark() {
+        guard let book = currentBook else { return }
+
+        if let existing = book.bookmarks.first(where: { $0.pageNumber == currentPage }) {
+            removeBookmark(existing)
+            showToast("Bookmark removed")
+        } else {
+            addBookmark()
+            showToast("Bookmark added")
+        }
+    }
+
     func addBookmark(note: String? = nil) {
         guard let book = currentBook else { return }
+
+        if book.bookmarks.contains(where: { $0.pageNumber == currentPage }) {
+            return
+        }
 
         let bookmark = Bookmark(pageNumber: currentPage, note: note)
         book.bookmarks.append(bookmark)
@@ -120,6 +249,21 @@ final class ReaderViewModel {
         }
         book.bookmarks.remove(at: index)
         try? modelContext?.save()
+    }
+
+    func goToBookmark(_ bookmark: Bookmark) {
+        goToPage(bookmark.pageNumber)
+    }
+
+    private func showToast(_ message: String) {
+        toastTask?.cancel()
+        bookmarkToastMessage = message
+        showBookmarkToast = true
+        toastTask = Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            guard !Task.isCancelled else { return }
+            showBookmarkToast = false
+        }
     }
 
     func zoomIn() {
@@ -142,87 +286,110 @@ final class ReaderViewModel {
 
         isLoading = true
 
-        if displayMode == .spread {
-            await loadSpreadImages()
-        } else {
-            await loadSingleImage()
-        }
+        await loadSpreadImages()
+
+        // If cancelled (replaced by a newer loadCurrentPage task), exit without
+        // touching isLoading — the replacement task owns the flag now.
+        guard !Task.isCancelled else { return }
 
         imageCache.prefetch(around: currentPage, totalPages: totalPages, using: provider)
         saveProgress()
-
         isLoading = false
     }
 
-    private func loadSingleImage() async {
-        guard let provider else { return }
+    private func isLandscapeImage(_ image: NSImage) -> Bool {
+        let size = image.size
+        return size.width > size.height * 1.2
+    }
 
+    private func loadImageForPage(_ index: Int) async -> NSImage? {
+        guard let provider, index >= 0, index < totalPages else { return nil }
+        if let cached = imageCache.image(for: index) {
+            return cached
+        }
         do {
-            if let cached = imageCache.image(for: currentPage) {
-                currentImage = applyFilters(to: cached)
-            } else {
-                let image = try await provider.image(at: currentPage)
-                imageCache.set(image, for: currentPage)
-                currentImage = applyFilters(to: image)
-            }
+            let image = try await provider.image(at: index)
+            imageCache.set(image, for: index)
+            return image
         } catch {
-            errorMessage = error.localizedDescription
+            logger.error("Failed to load page \(index): \(error.localizedDescription)")
+            return createErrorPlaceholder(page: index, error: error)
         }
     }
 
     private func loadSpreadImages() async {
-        guard let provider else { return }
+        guard provider != nil else { return }
 
-        // For RTL (manga style): right side shows odd pages, left side shows even pages
-        // Page 0 (first page) should be on the right only
-        // Pages 1-2 should be: right=1, left=2
-        // Pages 3-4 should be: right=3, left=4
-        // etc.
+        // Load the primary page first to check if it's a wide (spread scan) image
+        let primaryImage = await loadImageForPage(currentPage)
+        guard !Task.isCancelled else { return }
 
-        let rightIndex: Int
-        let leftIndex: Int
+        if let primary = primaryImage, isLandscapeImage(primary) {
+            // Wide image detected: show only this page across the full spread
+            isCurrentPageWide = true
+            displaysSinglePage = true
+            let filtered = applyFilters(to: primary)
+            spreadImages = (filtered, nil)
+            return
+        }
+
+        isCurrentPageWide = false
+
+        let secondaryIndex = currentPage + 1
+        let secondaryImage = await loadImageForPage(secondaryIndex)
+        guard !Task.isCancelled else { return }
+
+        // If the secondary image is also wide, or there is no secondary page,
+        // show only the primary page as a single page display
+        if secondaryImage == nil || (secondaryImage.map { isLandscapeImage($0) } ?? false) {
+            displaysSinglePage = true
+            let filteredPrimary = primaryImage.map { applyFilters(to: $0) }
+            if readingDirection == .rightToLeft {
+                spreadImages = (nil, filteredPrimary)
+            } else {
+                spreadImages = (filteredPrimary, nil)
+            }
+            return
+        }
+
+        // Normal spread: two portrait pages side by side
+        displaysSinglePage = false
+        let filteredPrimary = primaryImage.map { applyFilters(to: $0) }
+        let filteredSecondary = secondaryImage.map { applyFilters(to: $0) }
 
         if readingDirection == .rightToLeft {
-            // Right side: current page (odd/first position)
-            // Left side: next page (even position)
-            rightIndex = currentPage
-            leftIndex = currentPage + 1
+            spreadImages = (filteredSecondary, filteredPrimary)
         } else {
-            // LTR: left side is current, right is next
-            leftIndex = currentPage
-            rightIndex = currentPage + 1
+            spreadImages = (filteredPrimary, filteredSecondary)
         }
+    }
 
-        var leftImage: NSImage?
-        var rightImage: NSImage?
+    private func createErrorPlaceholder(page: Int, error: Error) -> NSImage {
+        let size = NSSize(width: 800, height: 1200)
+        return NSImage(size: size, flipped: true) { drawRect in
+            NSColor.windowBackgroundColor.setFill()
+            NSBezierPath.fill(drawRect)
 
-        do {
-            // Load right image (primary page in RTL)
-            if rightIndex >= 0, rightIndex < totalPages {
-                if let cached = imageCache.image(for: rightIndex) {
-                    rightImage = applyFilters(to: cached)
-                } else {
-                    let image = try await provider.image(at: rightIndex)
-                    imageCache.set(image, for: rightIndex)
-                    rightImage = applyFilters(to: image)
-                }
+            let iconRect = NSRect(x: 350, y: 450, width: 100, height: 100)
+            if let symbol = NSImage(
+                systemSymbolName: "exclamationmark.triangle",
+                accessibilityDescription: nil
+            ) {
+                symbol.draw(in: iconRect)
             }
 
-            // Load left image (secondary page in RTL)
-            if leftIndex >= 0, leftIndex < totalPages {
-                if let cached = imageCache.image(for: leftIndex) {
-                    leftImage = applyFilters(to: cached)
-                } else {
-                    let image = try await provider.image(at: leftIndex)
-                    imageCache.set(image, for: leftIndex)
-                    leftImage = applyFilters(to: image)
-                }
-            }
-        } catch {
-            errorMessage = error.localizedDescription
-        }
+            let style = NSMutableParagraphStyle()
+            style.alignment = .center
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: 14),
+                .foregroundColor: NSColor.secondaryLabelColor,
+                .paragraphStyle: style
+            ]
+            let text = "Page \(page + 1)\n\(error.localizedDescription)"
+            text.draw(in: NSRect(x: 50, y: 560, width: 700, height: 80), withAttributes: attrs)
 
-        spreadImages = (leftImage, rightImage)
+            return true
+        }
     }
 
     private func applyFilters(to image: NSImage) -> NSImage {
@@ -238,7 +405,7 @@ final class ReaderViewModel {
 
         book.progress?.currentPage = currentPage
         book.progress?.updatedAt = Date()
-        book.progress?.isCompleted = currentPage >= totalPages - 1
+        book.progress?.isCompleted = currentPage + currentStep >= totalPages
 
         try? modelContext?.save()
     }

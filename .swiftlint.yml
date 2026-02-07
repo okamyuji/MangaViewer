@@ -6,6 +6,10 @@ excluded:
 trailing_comma:
   mandatory_comma: false
 
+type_body_length:
+  warning: 350
+  error: 450
+
 function_body_length:
   warning: 60
   error: 100
@@ -25,6 +29,10 @@ identifier_name:
     warning: 40
     error: 60
   allowed_symbols: ["_"]
+
+file_length:
+  warning: 600
+  error: 700
 
 cyclomatic_complexity:
   warning: 20

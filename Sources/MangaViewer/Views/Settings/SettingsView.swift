@@ -45,12 +45,6 @@ struct SettingsView: View {
                     }
                 }
 
-                Picker("Display Mode", selection: $viewModel.displayMode) {
-                    ForEach(DisplayMode.allCases) { mode in
-                        Text(mode.label).tag(mode)
-                    }
-                }
-
                 Picker("Zoom Mode", selection: $viewModel.zoomMode) {
                     ForEach(ZoomMode.allCases.filter { $0 != .custom }) { mode in
                         Text(mode.label).tag(mode)
@@ -73,7 +67,9 @@ struct SettingsView: View {
                             .truncationMode(.middle)
                         Spacer()
                         Button {
-                            viewModel.removeWatchedFolder(folder)
+                            Task {
+                                await viewModel.removeWatchedFolder(folder)
+                            }
                         } label: {
                             Image(systemName: "xmark.circle.fill")
                                 .foregroundStyle(.secondary)
@@ -98,7 +94,9 @@ struct SettingsView: View {
         panel.allowsMultipleSelection = false
 
         if panel.runModal() == .OK, let url = panel.url {
-            viewModel.addWatchedFolder(url)
+            Task {
+                await viewModel.addWatchedFolder(url)
+            }
         }
     }
 }

@@ -48,19 +48,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_: Notification) {
-        // Check command line arguments for file paths
-        let args = CommandLine.arguments
-        if args.count > 1 {
-            for arg in args.dropFirst() {
-                let url = URL(fileURLWithPath: arg)
-                if FileManager.default.fileExists(atPath: url.path) {
-                    Task { @MainActor in
-                        AppState.shared.openFile(url)
+        #if DEBUG
+            // Command line argument file opening only works outside App Sandbox
+            let args = CommandLine.arguments
+            if args.count > 1 {
+                for arg in args.dropFirst() {
+                    let url = URL(fileURLWithPath: arg)
+                    if FileManager.default.fileExists(atPath: url.path) {
+                        Task { @MainActor in
+                            AppState.shared.openFile(url)
+                        }
+                        break
                     }
-                    break
                 }
             }
-        }
+        #endif
     }
 }
 

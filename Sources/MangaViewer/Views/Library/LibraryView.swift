@@ -39,14 +39,20 @@ struct LibraryView: View {
                 ScrollView {
                     LazyVGrid(columns: gridColumns, spacing: Constants.Grid.spacing) {
                         ForEach(filteredBooks) { book in
-                            BookGridItem(book: book) {
-                                // Reset selection first to ensure navigation triggers
-                                selectedBook = nil
-                                // Use async to allow SwiftUI to process the nil state
-                                Task { @MainActor in
-                                    selectedBook = book
+                            BookGridItem(
+                                book: book,
+                                onOpen: {
+                                    // Reset selection first to ensure navigation triggers
+                                    selectedBook = nil
+                                    // Use async to allow SwiftUI to process the nil state
+                                    Task { @MainActor in
+                                        selectedBook = book
+                                    }
+                                },
+                                onDelete: {
+                                    deleteBook(book)
                                 }
-                            }
+                            )
                         }
                     }
                     .padding()
@@ -101,6 +107,15 @@ struct LibraryView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    private func deleteBook(_ book: Book) {
+        let filePath = book.filePath
+        Task { @MainActor in
+            await SecurityScopedBookmarkManager.shared.removeBookmark(for: filePath)
+            modelContext.delete(book)
+            try? modelContext.save()
+        }
+    }
+
     private func importBooks() {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = true
@@ -112,7 +127,7 @@ struct LibraryView: View {
             guard response == .OK else { return }
 
             Task { @MainActor in
-                let viewModel = LibraryViewModel(modelContext: modelContext)
+                let viewModel = LibraryViewModel(modelContext: modelContext, startWatching: false)
                 for url in panel.urls {
                     await viewModel.addFolder(url)
                 }

@@ -36,74 +36,23 @@ if [ -f "Resources/AppIcon.icns" ]; then
     echo "📎 Added app icon"
 fi
 
-# Create Info.plist
-cat > "${APP_BUNDLE}/Contents/Info.plist" << 'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>CFBundleDevelopmentRegion</key>
-    <string>en</string>
-    <key>CFBundleExecutable</key>
-    <string>MangaViewer</string>
-    <key>CFBundleIconFile</key>
-    <string>AppIcon</string>
-    <key>CFBundleIdentifier</key>
-    <string>com.mangaviewer.app</string>
-    <key>CFBundleInfoDictionaryVersion</key>
-    <string>6.0</string>
-    <key>CFBundleName</key>
-    <string>MangaViewer</string>
-    <key>CFBundleDisplayName</key>
-    <string>Manga Viewer</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleShortVersionString</key>
-    <string>1.0.0</string>
-    <key>CFBundleVersion</key>
-    <string>1</string>
-    <key>LSMinimumSystemVersion</key>
-    <string>14.0</string>
-    <key>NSHighResolutionCapable</key>
-    <true/>
-    <key>NSSupportsAutomaticTermination</key>
-    <true/>
-    <key>NSSupportsSuddenTermination</key>
-    <true/>
-    <key>CFBundleDocumentTypes</key>
-    <array>
-        <dict>
-            <key>CFBundleTypeName</key>
-            <string>Comic Book Archive (ZIP)</string>
-            <key>CFBundleTypeExtensions</key>
-            <array>
-                <string>cbz</string>
-                <string>zip</string>
-            </array>
-            <key>CFBundleTypeRole</key>
-            <string>Viewer</string>
-            <key>LSHandlerRank</key>
-            <string>Default</string>
-        </dict>
-        <dict>
-            <key>CFBundleTypeName</key>
-            <string>Comic Book Archive (RAR)</string>
-            <key>CFBundleTypeExtensions</key>
-            <array>
-                <string>cbr</string>
-                <string>rar</string>
-            </array>
-            <key>CFBundleTypeRole</key>
-            <string>Viewer</string>
-            <key>LSHandlerRank</key>
-            <string>Default</string>
-        </dict>
-    </array>
-    <key>NSPrincipalClass</key>
-    <string>NSApplication</string>
-</dict>
-</plist>
-EOF
+# Copy privacy manifest if exists
+if [ -f "Resources/PrivacyInfo.xcprivacy" ]; then
+    cp "Resources/PrivacyInfo.xcprivacy" "${APP_BUNDLE}/Contents/Resources/"
+    echo "📎 Added privacy manifest"
+fi
+
+# Generate Info.plist using PlistBuddy to replace all Xcode build-setting placeholders
+PLIST="${APP_BUNDLE}/Contents/Info.plist"
+cp "Info.plist" "${PLIST}"
+BUDDY=/usr/libexec/PlistBuddy
+${BUDDY} -c "Set :CFBundleExecutable ${APP_NAME}" "${PLIST}"
+${BUDDY} -c "Set :CFBundleIdentifier work.okamyuji.mangaviewer" "${PLIST}"
+${BUDDY} -c "Set :CFBundleName ${APP_NAME}" "${PLIST}"
+${BUDDY} -c "Set :LSMinimumSystemVersion 14.0" "${PLIST}"
+# SwiftPM builds use .icns directly instead of Asset Catalog
+${BUDDY} -c "Delete :CFBundleIconName" "${PLIST}" 2>/dev/null || true
+${BUDDY} -c "Add :CFBundleIconFile string AppIcon" "${PLIST}" 2>/dev/null || true
 
 # Create PkgInfo
 echo -n "APPL????" > "${APP_BUNDLE}/Contents/PkgInfo"

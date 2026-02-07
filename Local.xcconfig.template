@@ -1,0 +1,3 @@
+// Local build settings - not tracked in version control
+// Copy this file to Local.xcconfig and fill in your values
+DEVELOPMENT_TEAM = YOUR_TEAM_ID_HERE

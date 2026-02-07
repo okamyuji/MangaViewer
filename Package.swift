@@ -1,4 +1,4 @@
-// swift-tools-version: 5.9
+// swift-tools-version: 6.0
 import PackageDescription
 
 let package = Package(
@@ -20,10 +20,7 @@ let package = Package(
                 "ZIPFoundation",
                 .product(name: "Unrar", package: "Unrar.swift")
             ],
-            path: "Sources/MangaViewer",
-            swiftSettings: [
-                .enableUpcomingFeature("StrictConcurrency")
-            ]
+            path: "Sources/MangaViewer"
         ),
         .testTarget(
             name: "MangaViewerTests",

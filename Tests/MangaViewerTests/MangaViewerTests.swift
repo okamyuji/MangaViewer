@@ -107,21 +107,6 @@ struct MangaViewerErrorTests {
     }
 }
 
-@Suite("DisplayMode Tests")
-struct DisplayModeTests {
-    @Test("DisplayMode has correct labels")
-    func labels() {
-        #expect(DisplayMode.single.label == "Single Page")
-        #expect(DisplayMode.spread.label == "Spread (2 Pages)")
-    }
-
-    @Test("DisplayMode has correct icons")
-    func icons() {
-        #expect(DisplayMode.single.icon == "doc")
-        #expect(DisplayMode.spread.icon == "doc.on.doc")
-    }
-}
-
 @Suite("ReadingDirection Tests")
 struct ReadingDirectionTests {
     @Test("ReadingDirection has correct labels")
@@ -176,6 +161,183 @@ struct ImageFilterSettingsTests {
         var settings = ImageFilterSettings()
         settings.brightness = 0.5
         #expect(!settings.isDefault)
+    }
+
+    @Test("isDefault detects each modified property")
+    func isDefaultEachProperty() {
+        var s1 = ImageFilterSettings()
+        s1.contrast = 1.5
+        #expect(!s1.isDefault)
+
+        var s2 = ImageFilterSettings()
+        s2.sepia = 0.3
+        #expect(!s2.isDefault)
+
+        var s3 = ImageFilterSettings()
+        s3.grayscale = true
+        #expect(!s3.isDefault)
+    }
+}
+
+@Suite("ImageFilterApplier Tests")
+@MainActor
+struct ImageFilterApplierTests {
+    private func createTestImage() -> NSImage {
+        NSImage(size: NSSize(width: 100, height: 100), flipped: false) { rect in
+            NSColor.red.setFill()
+            NSBezierPath.fill(rect)
+            return true
+        }
+    }
+
+    @Test("Default settings return original image unchanged")
+    func defaultSettingsReturnOriginal() {
+        let original = createTestImage()
+        let result = ImageFilterApplier.apply(.default, to: original)
+        #expect(result === original)
+    }
+
+    @Test("Non-default brightness produces different image")
+    func brightnessApplied() {
+        let original = createTestImage()
+        var settings = ImageFilterSettings()
+        settings.brightness = 0.5
+        let result = ImageFilterApplier.apply(settings, to: original)
+        #expect(result !== original)
+        #expect(result.size == original.size)
+    }
+
+    @Test("Grayscale filter produces different image")
+    func grayscaleApplied() {
+        let original = createTestImage()
+        var settings = ImageFilterSettings()
+        settings.grayscale = true
+        let result = ImageFilterApplier.apply(settings, to: original)
+        #expect(result !== original)
+        #expect(result.size == original.size)
+    }
+
+    @Test("Sepia filter produces different image")
+    func sepiaApplied() {
+        let original = createTestImage()
+        var settings = ImageFilterSettings()
+        settings.sepia = 0.8
+        let result = ImageFilterApplier.apply(settings, to: original)
+        #expect(result !== original)
+        #expect(result.size == original.size)
+    }
+
+    @Test("Contrast filter produces different image")
+    func contrastApplied() {
+        let original = createTestImage()
+        var settings = ImageFilterSettings()
+        settings.contrast = 2.0
+        let result = ImageFilterApplier.apply(settings, to: original)
+        #expect(result !== original)
+        #expect(result.size == original.size)
+    }
+}
+
+@Suite("ReaderViewModel Tests")
+struct ReaderViewModelTests {
+    @Test("setReadingDirection changes direction")
+    @MainActor
+    func setReadingDirection() {
+        let vm = ReaderViewModel()
+        #expect(vm.readingDirection == .rightToLeft)
+
+        vm.setReadingDirection(.leftToRight)
+        #expect(vm.readingDirection == .leftToRight)
+
+        vm.setReadingDirection(.rightToLeft)
+        #expect(vm.readingDirection == .rightToLeft)
+    }
+
+    @Test("setReadingDirection does not change if same direction")
+    @MainActor
+    func setReadingDirectionSame() {
+        let vm = ReaderViewModel()
+        vm.setReadingDirection(.rightToLeft)
+        #expect(vm.readingDirection == .rightToLeft)
+    }
+
+    @Test("canBookmark is false when currentBook is nil")
+    @MainActor
+    func canBookmarkWithoutBook() {
+        let vm = ReaderViewModel()
+        #expect(vm.canBookmark == false)
+    }
+
+    @Test("hasBookmarkOnCurrentPage is false when currentBook is nil")
+    @MainActor
+    func hasBookmarkWithoutBook() {
+        let vm = ReaderViewModel()
+        #expect(vm.hasBookmarkOnCurrentPage == false)
+    }
+
+    @Test("addBookmark does nothing when currentBook is nil")
+    @MainActor
+    func addBookmarkWithoutBook() {
+        let vm = ReaderViewModel()
+        vm.addBookmark()
+        #expect(vm.showBookmarkToast == false)
+    }
+
+    @Test("toggleBookmark does nothing when currentBook is nil")
+    @MainActor
+    func toggleBookmarkWithoutBook() {
+        let vm = ReaderViewModel()
+        vm.toggleBookmark()
+        #expect(vm.showBookmarkToast == false)
+    }
+
+    @Test("sortedBookmarks is empty when currentBook is nil")
+    @MainActor
+    func sortedBookmarksWithoutBook() {
+        let vm = ReaderViewModel()
+        #expect(vm.sortedBookmarks.isEmpty)
+    }
+
+    @Test("page navigation respects bounds")
+    @MainActor
+    func pageNavigationBounds() {
+        let vm = ReaderViewModel()
+        vm.totalPages = 5
+        vm.currentPage = 0
+
+        vm.previousPage()
+        #expect(vm.currentPage == 0)
+
+        vm.goToPage(10)
+        #expect(vm.currentPage == 4)
+
+        vm.goToPage(-1)
+        #expect(vm.currentPage == 0)
+    }
+
+    @Test("zoom in and out change scale")
+    @MainActor
+    func zoomInOut() {
+        let vm = ReaderViewModel()
+        let initialScale = vm.zoomScale
+
+        vm.zoomIn()
+        #expect(vm.zoomScale > initialScale)
+        #expect(vm.zoomMode == .custom)
+
+        vm.resetZoom()
+        #expect(vm.zoomScale == 1.0)
+        #expect(vm.zoomMode == .fitPage)
+
+        vm.zoomOut()
+        #expect(vm.zoomScale < 1.0)
+    }
+
+    @Test("isCurrentPageWide defaults to false")
+    @MainActor
+    func isCurrentPageWideDefault() {
+        let vm = ReaderViewModel()
+        #expect(vm.isCurrentPageWide == false)
     }
 }
 
