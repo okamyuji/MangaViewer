@@ -18,9 +18,14 @@ final class LibraryViewModel {
     private let modelContext: ModelContext
     private let libraryWatcher = LibraryWatcher()
 
+    private let settingsViewModel = SettingsViewModel()
+
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
         setupWatcher()
+        Task {
+            await restoreWatchedFolders()
+        }
     }
 
     private func setupWatcher() {
@@ -132,6 +137,14 @@ final class LibraryViewModel {
 
     func refreshLibrary() {
         try? modelContext.save()
+    }
+
+    private func restoreWatchedFolders() async {
+        let urls = await settingsViewModel.restoreWatchedFolderAccess()
+        for url in urls {
+            libraryWatcher.watch(folder: url)
+            await scanFolder(url)
+        }
     }
 
     func openBookInFinder(_ book: Book) {

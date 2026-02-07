@@ -10,7 +10,6 @@ struct ContentView: View {
     @State private var directOpenProvider: PageProvider?
     @State private var directOpenTitle: String?
     @State private var directOpenThumbnail: NSImage?
-    @State private var directOpenURL: URL?
     @State private var isLoading = false
     @State private var loadingError: String?
     @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
@@ -28,14 +27,6 @@ struct ContentView: View {
                             directOpenProvider = nil
                             directOpenTitle = nil
                             directOpenThumbnail = nil
-                            if let url = directOpenURL {
-                                Task {
-                                    await SecurityScopedBookmarkManager.shared.removeBookmark(
-                                        for: url.path
-                                    )
-                                }
-                                directOpenURL = nil
-                            }
                         }
                     )
                 }
@@ -99,8 +90,6 @@ struct ContentView: View {
         loadingError = nil
 
         Task {
-            await SecurityScopedBookmarkManager.shared.saveBookmark(for: url)
-
             do {
                 let provider = try ArchiveService.provider(for: url)
                 // Load first page as thumbnail
@@ -111,7 +100,6 @@ struct ContentView: View {
                 directOpenProvider = provider
                 directOpenTitle = url.deletingPathExtension().lastPathComponent
                 directOpenThumbnail = thumbnail
-                directOpenURL = url
                 isLoading = false
             } catch {
                 isLoading = false

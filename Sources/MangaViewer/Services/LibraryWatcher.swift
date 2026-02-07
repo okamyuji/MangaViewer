@@ -2,7 +2,9 @@ import Darwin
 import Foundation
 import os.log
 
-private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "MangaViewer", category: "LibraryWatcher")
+private let logger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "MangaViewer", category: "LibraryWatcher"
+)
 
 @Observable
 @MainActor
@@ -17,45 +19,23 @@ final class LibraryWatcher {
     func watch(folder: URL) {
         guard !watchedRoots.contains(folder) else { return }
         watchedRoots.insert(folder)
-
         watchDirectory(folder)
-
-        let fileManager = FileManager.default
-        guard
-            let enumerator = fileManager.enumerator(
-                at: folder,
-                includingPropertiesForKeys: [.isDirectoryKey],
-                options: [.skipsHiddenFiles]
-            )
-        else {
-            return
-        }
-
-        for case let subURL as URL in enumerator {
-            let isDir =
-                (try? subURL.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
-            if isDir {
-                watchDirectory(subURL)
-            }
-        }
     }
 
     func unwatch(folder: URL) {
         watchedRoots.remove(folder)
 
-        for url in sources.keys where url.path.hasPrefix(folder.path) {
-            if let entry = sources[url] {
+        let keysToRemove = sources.keys.filter { $0.path.hasPrefix(folder.path) }
+        for url in keysToRemove {
+            if let entry = sources.removeValue(forKey: url) {
                 entry.source.cancel()
-                sources.removeValue(forKey: url)
             }
         }
     }
 
     func unwatchAll() {
-        for url in Array(sources.keys) {
-            if let entry = sources[url] {
-                entry.source.cancel()
-            }
+        for entry in sources.values {
+            entry.source.cancel()
         }
         sources.removeAll()
         watchedRoots.removeAll()
