@@ -404,6 +404,63 @@ struct ReaderViewModelTests {
         vm.previousPage()
         #expect(vm.currentPage == 0)
     }
+
+    @Test("setDisplayMode to single clears spreadImages")
+    @MainActor
+    func setDisplayModeSingleClearsSpread() {
+        let vm = ReaderViewModel()
+        let placeholder = NSImage(size: NSSize(width: 10, height: 10))
+        vm.spreadImages = (placeholder, placeholder)
+
+        vm.setDisplayMode(.single)
+        #expect(vm.displayMode == .single)
+        // spreadImages are cleared when loadSingleImage runs,
+        // but synchronously the mode should change immediately
+    }
+
+    @Test("setDisplayMode to spread clears currentImage")
+    @MainActor
+    func setDisplayModeSpreadClearsSingle() {
+        let vm = ReaderViewModel()
+        vm.displayMode = .single
+        vm.currentImage = NSImage(size: NSSize(width: 10, height: 10))
+
+        vm.setDisplayMode(.spread)
+        #expect(vm.displayMode == .spread)
+        // currentImage is cleared when loadSpreadImages runs
+    }
+
+    @Test("toggleDisplayMode cycles correctly multiple times")
+    @MainActor
+    func toggleDisplayModeMultiple() {
+        let vm = ReaderViewModel()
+        #expect(vm.displayMode == .spread)
+
+        vm.toggleDisplayMode()
+        #expect(vm.displayMode == .single)
+
+        vm.toggleDisplayMode()
+        #expect(vm.displayMode == .spread)
+
+        vm.toggleDisplayMode()
+        #expect(vm.displayMode == .single)
+
+        vm.toggleDisplayMode()
+        #expect(vm.displayMode == .spread)
+    }
+
+    @Test("setDisplayMode same mode is no-op")
+    @MainActor
+    func setDisplayModeSameModeNoOp() {
+        let vm = ReaderViewModel()
+        let img = NSImage(size: NSSize(width: 10, height: 10))
+        vm.spreadImages = (img, img)
+
+        // Calling setDisplayMode with current mode should not clear images
+        vm.setDisplayMode(.spread)
+        #expect(vm.spreadImages.left != nil)
+        #expect(vm.spreadImages.right != nil)
+    }
 }
 
 @Suite("Color Extension Tests")

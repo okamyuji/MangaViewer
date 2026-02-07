@@ -43,6 +43,7 @@ final class ReaderViewModel {
     private var modelContext: ModelContext?
 
     private var accessingURL: URL?
+    private var loadingTask: Task<Void, Never>?
 
     func openBook(_ book: Book, modelContext: ModelContext) async {
         if let previousURL = accessingURL {
@@ -132,7 +133,7 @@ final class ReaderViewModel {
         let newPage = min(currentPage + currentStep, totalPages - 1)
         if newPage != currentPage {
             currentPage = newPage
-            Task { await loadCurrentPage() }
+            scheduleLoadPage()
         }
     }
 
@@ -140,7 +141,7 @@ final class ReaderViewModel {
         let newPage = max(currentPage - currentStep, 0)
         if newPage != currentPage {
             currentPage = newPage
-            Task { await loadCurrentPage() }
+            scheduleLoadPage()
         }
     }
 
@@ -148,14 +149,14 @@ final class ReaderViewModel {
         let clampedPage = max(0, min(page, totalPages - 1))
         if clampedPage != currentPage {
             currentPage = clampedPage
-            Task { await loadCurrentPage() }
+            scheduleLoadPage()
         }
     }
 
     func setDisplayMode(_ mode: DisplayMode) {
         guard mode != displayMode else { return }
         displayMode = mode
-        Task { await loadCurrentPage() }
+        scheduleLoadPage()
     }
 
     func toggleDisplayMode() {
@@ -165,11 +166,16 @@ final class ReaderViewModel {
     func setReadingDirection(_ direction: ReadingDirection) {
         guard direction != readingDirection else { return }
         readingDirection = direction
-        Task { await loadCurrentPage() }
+        scheduleLoadPage()
     }
 
     func applyCurrentFilters() {
-        Task { await loadCurrentPage() }
+        scheduleLoadPage()
+    }
+
+    private func scheduleLoadPage() {
+        loadingTask?.cancel()
+        loadingTask = Task { await loadCurrentPage() }
     }
 
     func toggleFullScreen() {
@@ -253,6 +259,8 @@ final class ReaderViewModel {
             await loadSingleImage()
         }
 
+        guard !Task.isCancelled else { return }
+
         imageCache.prefetch(around: currentPage, totalPages: totalPages, using: provider)
         saveProgress()
 
@@ -262,7 +270,10 @@ final class ReaderViewModel {
     private func loadSingleImage() async {
         guard provider != nil else { return }
 
+        spreadImages = (nil, nil)
+
         if let image = await loadImageForPage(currentPage) {
+            guard !Task.isCancelled else { return }
             currentImage = applyFilters(to: image)
         } else {
             currentImage = nil
@@ -292,8 +303,11 @@ final class ReaderViewModel {
     private func loadSpreadImages() async {
         guard provider != nil else { return }
 
+        currentImage = nil
+
         // Load the primary page first to check if it's a wide (spread scan) image
         let primaryImage = await loadImageForPage(currentPage)
+        guard !Task.isCancelled else { return }
 
         if let primary = primaryImage, isLandscapeImage(primary) {
             // Wide image detected: show only this page across the full spread
@@ -307,6 +321,7 @@ final class ReaderViewModel {
 
         let secondaryIndex = currentPage + 1
         let secondaryImage = await loadImageForPage(secondaryIndex)
+        guard !Task.isCancelled else { return }
 
         // If the secondary image is also wide, don't pair them
         if let secondary = secondaryImage, isLandscapeImage(secondary) {

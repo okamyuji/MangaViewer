@@ -83,9 +83,17 @@ struct ReaderView: View {
         }
     }
 
+    private var hasVisibleImage: Bool {
+        if viewModel.displayMode == .single {
+            return viewModel.currentImage != nil
+        } else {
+            return viewModel.spreadImages.left != nil || viewModel.spreadImages.right != nil
+        }
+    }
+
     @ViewBuilder
     private var contentView: some View {
-        if viewModel.isLoading && viewModel.currentImage == nil {
+        if viewModel.isLoading && !hasVisibleImage {
             ProgressView("Loading...")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let errorMessage = viewModel.errorMessage {
