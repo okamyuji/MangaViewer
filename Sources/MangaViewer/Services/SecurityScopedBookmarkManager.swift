@@ -3,6 +3,7 @@ import Foundation
 final class SecurityScopedBookmarkManager: @unchecked Sendable {
     static let shared = SecurityScopedBookmarkManager()
 
+    private let queue = DispatchQueue(label: "work.okamyuji.mangaviewer.bookmark-manager")
     private let bookmarkKey = "securityScopedBookmarks"
     private var activeURLs: Set<URL> = []
 
@@ -15,9 +16,11 @@ final class SecurityScopedBookmarkManager: @unchecked Sendable {
                 includingResourceValuesForKeys: nil,
                 relativeTo: nil
             )
-            var bookmarks = loadAllBookmarkData()
-            bookmarks[url.path] = bookmarkData
-            saveAllBookmarkData(bookmarks)
+            queue.sync {
+                var bookmarks = loadAllBookmarkData()
+                bookmarks[url.path] = bookmarkData
+                saveAllBookmarkData(bookmarks)
+            }
         } catch {
             print("Failed to save bookmark for \(url.path): \(error)")
         }
@@ -25,46 +28,62 @@ final class SecurityScopedBookmarkManager: @unchecked Sendable {
 
     @discardableResult
     func startAccessing(path: String) -> URL? {
-        let bookmarks = loadAllBookmarkData()
-        guard let data = bookmarks[path] else { return nil }
+        queue.sync {
+            let bookmarks = loadAllBookmarkData()
+            guard let data = bookmarks[path] else { return nil }
 
-        var isStale = false
-        guard let url = try? URL(
-            resolvingBookmarkData: data,
-            options: .withSecurityScope,
-            relativeTo: nil,
-            bookmarkDataIsStale: &isStale
-        ) else { return nil }
+            var isStale = false
+            guard let url = try? URL(
+                resolvingBookmarkData: data,
+                options: .withSecurityScope,
+                relativeTo: nil,
+                bookmarkDataIsStale: &isStale
+            ) else { return nil }
 
-        if isStale {
-            saveBookmark(for: url)
+            if isStale {
+                if let newData = try? url.bookmarkData(
+                    options: .withSecurityScope,
+                    includingResourceValuesForKeys: nil,
+                    relativeTo: nil
+                ) {
+                    var bookmarks = loadAllBookmarkData()
+                    bookmarks[url.path] = newData
+                    saveAllBookmarkData(bookmarks)
+                }
+            }
+
+            if url.startAccessingSecurityScopedResource() {
+                activeURLs.insert(url)
+            }
+
+            return url
         }
-
-        if url.startAccessingSecurityScopedResource() {
-            activeURLs.insert(url)
-        }
-
-        return url
     }
 
     func stopAccessing(url: URL) {
-        if activeURLs.contains(url) {
-            url.stopAccessingSecurityScopedResource()
-            activeURLs.remove(url)
+        queue.sync {
+            if activeURLs.contains(url) {
+                url.stopAccessingSecurityScopedResource()
+                activeURLs.remove(url)
+            }
         }
     }
 
     func removeBookmark(for path: String) {
-        var bookmarks = loadAllBookmarkData()
-        bookmarks.removeValue(forKey: path)
-        saveAllBookmarkData(bookmarks)
+        queue.sync {
+            var bookmarks = loadAllBookmarkData()
+            bookmarks.removeValue(forKey: path)
+            saveAllBookmarkData(bookmarks)
+        }
     }
 
     func stopAll() {
-        for url in activeURLs {
-            url.stopAccessingSecurityScopedResource()
+        queue.sync {
+            for url in activeURLs {
+                url.stopAccessingSecurityScopedResource()
+            }
+            activeURLs.removeAll()
         }
-        activeURLs.removeAll()
     }
 
     // MARK: - Private
