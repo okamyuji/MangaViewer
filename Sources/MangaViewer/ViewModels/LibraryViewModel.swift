@@ -95,6 +95,23 @@ final class LibraryViewModel {
             existingPaths = []
         }
 
+        // Move heavy file-system enumeration off the MainActor
+        let newURLs = await Task.detached {
+            Self.findNewBookFiles(in: folderURL, excluding: existingPaths)
+        }.value
+
+        for fileURL in newURLs {
+            await addBook(at: fileURL)
+        }
+
+        libraryWatcher.watch(folder: folderURL)
+    }
+
+    /// Scans a folder for supported book files, filtering out already-known paths.
+    /// Runs off-MainActor to avoid blocking the UI with file-system IO.
+    private nonisolated static func findNewBookFiles(
+        in folderURL: URL, excluding existingPaths: Set<String>
+    ) -> [URL] {
         let fileManager = FileManager.default
         guard
             let enumerator = fileManager.enumerator(
@@ -103,58 +120,62 @@ final class LibraryViewModel {
                 options: [.skipsHiddenFiles]
             )
         else {
-            return
+            return []
         }
-
-        let urls = enumerator.compactMap { $0 as? URL }
-        for fileURL in urls where ArchiveService.bookType(for: fileURL) != nil {
-            if existingPaths.contains(fileURL.path) {
-                continue
-            }
-            await addBook(at: fileURL)
-        }
-
-        libraryWatcher.watch(folder: folderURL)
+        return enumerator.compactMap { $0 as? URL }
+            .filter { ArchiveService.bookType(for: $0) != nil && !existingPaths.contains($0.path) }
     }
 
     private func addBook(at url: URL) async {
-        guard let bookType = ArchiveService.bookType(for: url) else {
-            return
-        }
+        // Run archive parsing, bookmark creation, and thumbnail generation off-MainActor
+        let info: BookInfo? = await Task.detached {
+            await Self.extractBookInfo(from: url)
+        }.value
+
+        guard let info else { return }
+
+        // SwiftData insertion must happen on MainActor
+        let book = Book(
+            title: info.title,
+            filePath: info.filePath,
+            type: info.bookType,
+            totalPages: info.totalPages
+        )
+        book.bookmarkData = info.bookmarkData
+        book.thumbnailData = info.thumbnailData
+        book.progress = ReadingProgress()
+
+        modelContext.insert(book)
+        try? modelContext.save()
+    }
+
+    /// Extracts all book metadata off-MainActor: opens archive, generates thumbnail, creates bookmark.
+    private nonisolated static func extractBookInfo(from url: URL) async -> BookInfo? {
+        guard let bookType = ArchiveService.bookType(for: url) else { return nil }
 
         do {
             let provider = try ArchiveService.provider(for: url)
             defer { provider.close() }
 
             let title = url.deletingPathExtension().lastPathComponent
-            let book = Book(
-                title: title,
-                filePath: url.path,
-                type: bookType,
-                totalPages: provider.pageCount
+            let bookmarkData = try? url.bookmarkData(
+                options: .withSecurityScope,
+                includingResourceValuesForKeys: nil,
+                relativeTo: nil
             )
 
-            do {
-                book.bookmarkData = try url.bookmarkData(
-                    options: .withSecurityScope,
-                    includingResourceValuesForKeys: nil,
-                    relativeTo: nil
-                )
-            } catch {
-                logger.error("Failed to create bookmark for \(book.title): \(error)")
-            }
+            let thumbnailData = await ThumbnailGenerator.generate(from: provider)
 
-            if let thumbnailData = await ThumbnailGenerator.generate(from: provider) {
-                book.thumbnailData = thumbnailData
-            }
-
-            let progress = ReadingProgress()
-            book.progress = progress
-
-            modelContext.insert(book)
-            try modelContext.save()
+            return BookInfo(
+                title: title,
+                filePath: url.path,
+                bookType: bookType,
+                totalPages: provider.pageCount,
+                bookmarkData: bookmarkData,
+                thumbnailData: thumbnailData
+            )
         } catch {
-            logger.error("Failed to add book: \(error)")
+            return nil
         }
     }
 
@@ -192,4 +213,14 @@ final class LibraryViewModel {
             url.path, inFileViewerRootedAtPath: url.deletingLastPathComponent().path
         )
     }
+}
+
+/// Value type for passing book metadata across actor boundaries.
+private struct BookInfo: Sendable {
+    let title: String
+    let filePath: String
+    let bookType: BookType
+    let totalPages: Int
+    let bookmarkData: Data?
+    let thumbnailData: Data?
 }

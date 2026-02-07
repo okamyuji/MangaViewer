@@ -149,6 +149,7 @@ final class ReaderViewModel {
         provider = nil
         currentBook = nil
         spreadImages = (nil, nil)
+        isLoading = false
 
         let cache = imageCache
         let url = accessingURL
