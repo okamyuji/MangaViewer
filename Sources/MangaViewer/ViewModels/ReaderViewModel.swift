@@ -155,6 +155,20 @@ final class ReaderViewModel {
 
     func setDisplayMode(_ mode: DisplayMode) {
         guard mode != displayMode else { return }
+
+        // Synchronously transfer images from cache to prevent flicker
+        // between displayMode change and async Task execution
+        switch mode {
+        case .single:
+            if let cached = imageCache.image(for: currentPage) {
+                currentImage = applyFilters(to: cached)
+            }
+            spreadImages = (nil, nil)
+        case .spread:
+            currentImage = nil
+            setSpreadImagesFromCache()
+        }
+
         displayMode = mode
         scheduleLoadPage()
     }
@@ -171,6 +185,30 @@ final class ReaderViewModel {
 
     func applyCurrentFilters() {
         scheduleLoadPage()
+    }
+
+    private func setSpreadImagesFromCache() {
+        guard let primary = imageCache.image(for: currentPage) else { return }
+
+        if isLandscapeImage(primary) {
+            isCurrentPageWide = true
+            spreadImages = (applyFilters(to: primary), nil)
+            return
+        }
+
+        isCurrentPageWide = false
+        let filteredPrimary = applyFilters(to: primary)
+        let secondaryIndex = currentPage + 1
+
+        let secondary = secondaryIndex < totalPages
+            ? imageCache.image(for: secondaryIndex) : nil
+        let filteredSecondary = secondary.map { applyFilters(to: $0) }
+
+        if readingDirection == .rightToLeft {
+            spreadImages = (filteredSecondary, filteredPrimary)
+        } else {
+            spreadImages = (filteredPrimary, filteredSecondary)
+        }
     }
 
     private func scheduleLoadPage() {

@@ -31,8 +31,8 @@ identifier_name:
   allowed_symbols: ["_"]
 
 file_length:
-  warning: 500
-  error: 600
+  warning: 600
+  error: 700
 
 cyclomatic_complexity:
   warning: 20

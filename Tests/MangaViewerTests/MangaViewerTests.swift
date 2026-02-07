@@ -463,6 +463,107 @@ struct ReaderViewModelTests {
     }
 }
 
+// MARK: - Mock PageProvider for integration tests
+
+final class MockPageProvider: PageProvider, @unchecked Sendable {
+    let pageCount: Int
+    private let images: [NSImage]
+
+    init(count: Int) {
+        pageCount = count
+        var imgs: [NSImage] = []
+        for idx in 0 ..< count {
+            let image = NSImage(size: NSSize(width: 100, height: 150))
+            image.lockFocus()
+            NSColor(
+                red: CGFloat(idx) / CGFloat(count),
+                green: 0.5,
+                blue: 0.5,
+                alpha: 1.0
+            ).setFill()
+            NSBezierPath.fill(NSRect(x: 0, y: 0, width: 100, height: 150))
+            image.unlockFocus()
+            imgs.append(image)
+        }
+        images = imgs
+    }
+
+    func image(at index: Int) async throws -> NSImage {
+        guard index >= 0, index < pageCount else {
+            throw MangaViewerError.pageOutOfRange(index, pageCount)
+        }
+        return images[index]
+    }
+
+    func close() {}
+}
+
+@Suite("Display Mode Integration Tests")
+struct DisplayModeIntegrationTests {
+    @Test("Switching from spread to single sets currentImage synchronously from cache")
+    @MainActor
+    func spreadToSingleUsesCache() async {
+        let vm = ReaderViewModel()
+        let provider = MockPageProvider(count: 5)
+
+        // Open the provider and wait for initial load (spread mode)
+        await vm.openProvider(provider, title: "Test")
+        #expect(vm.totalPages == 5)
+        #expect(vm.displayMode == .spread)
+        #expect(vm.spreadImages.left != nil || vm.spreadImages.right != nil)
+
+        // Switch to single mode - currentImage should be set immediately from cache
+        vm.setDisplayMode(.single)
+        #expect(vm.displayMode == .single)
+        #expect(vm.currentImage != nil, "currentImage should be set synchronously from cache")
+        #expect(vm.spreadImages.left == nil)
+        #expect(vm.spreadImages.right == nil)
+    }
+
+    @Test("Switching from single to spread sets spreadImages synchronously from cache")
+    @MainActor
+    func singleToSpreadUsesCache() async {
+        let vm = ReaderViewModel()
+        let provider = MockPageProvider(count: 5)
+
+        await vm.openProvider(provider, title: "Test")
+
+        // First switch to single
+        vm.setDisplayMode(.single)
+        // Wait for async load to complete
+        try? await Task.sleep(for: .milliseconds(50))
+        #expect(vm.currentImage != nil)
+
+        // Now switch back to spread - spreadImages should be set from cache
+        vm.setDisplayMode(.spread)
+        #expect(vm.displayMode == .spread)
+        #expect(vm.spreadImages.left != nil || vm.spreadImages.right != nil,
+                "spreadImages should be set synchronously from cache")
+        #expect(vm.currentImage == nil)
+    }
+
+    @Test("Toggle display mode preserves visible images throughout")
+    @MainActor
+    func togglePreservesImages() async {
+        let vm = ReaderViewModel()
+        let provider = MockPageProvider(count: 5)
+
+        await vm.openProvider(provider, title: "Test")
+        #expect(vm.spreadImages.left != nil || vm.spreadImages.right != nil)
+
+        // Toggle to single
+        vm.toggleDisplayMode()
+        #expect(vm.displayMode == .single)
+        #expect(vm.currentImage != nil, "Single mode should have image immediately")
+
+        // Toggle back to spread
+        vm.toggleDisplayMode()
+        #expect(vm.displayMode == .spread)
+        #expect(vm.spreadImages.left != nil || vm.spreadImages.right != nil,
+                "Spread mode should have images immediately")
+    }
+}
+
 @Suite("Color Extension Tests")
 struct ColorExtensionTests {
     @Test("Color initializes from valid hex")
