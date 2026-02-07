@@ -22,7 +22,7 @@ final class LibraryViewModel {
     private var isRefreshing = false
 
     @ObservationIgnored
-    private var folderRemovedObserver: (any NSObjectProtocol)?
+    private nonisolated(unsafe) var folderRemovedObserver: (any NSObjectProtocol)?
 
     init(modelContext: ModelContext, startWatching: Bool = true) {
         self.modelContext = modelContext
@@ -31,6 +31,12 @@ final class LibraryViewModel {
             Task {
                 await restoreWatchedFolders()
             }
+        }
+    }
+
+    nonisolated deinit {
+        if let observer = folderRemovedObserver {
+            NotificationCenter.default.removeObserver(observer)
         }
     }
 
