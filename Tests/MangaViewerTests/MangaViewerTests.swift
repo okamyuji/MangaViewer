@@ -255,7 +255,22 @@ struct ReaderViewModelTests {
     func addBookmarkWithoutBook() {
         let vm = ReaderViewModel()
         vm.addBookmark()
-        #expect(vm.showBookmarkAdded == false)
+        #expect(vm.showBookmarkToast == false)
+    }
+
+    @Test("toggleBookmark does nothing when currentBook is nil")
+    @MainActor
+    func toggleBookmarkWithoutBook() {
+        let vm = ReaderViewModel()
+        vm.toggleBookmark()
+        #expect(vm.showBookmarkToast == false)
+    }
+
+    @Test("sortedBookmarks is empty when currentBook is nil")
+    @MainActor
+    func sortedBookmarksWithoutBook() {
+        let vm = ReaderViewModel()
+        #expect(vm.sortedBookmarks.isEmpty)
     }
 
     @Test("page navigation respects bounds")

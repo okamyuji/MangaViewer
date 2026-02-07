@@ -24,7 +24,8 @@ final class ReaderViewModel {
     var spreadImages: (left: NSImage?, right: NSImage?) = (nil, nil)
     var isLoading: Bool = false
     var errorMessage: String?
-    var showBookmarkAdded: Bool = false
+    var showBookmarkToast: Bool = false
+    var bookmarkToastMessage: String = ""
 
     var canBookmark: Bool {
         currentBook != nil
@@ -175,6 +176,22 @@ final class ReaderViewModel {
         isFullScreen.toggle()
     }
 
+    var sortedBookmarks: [Bookmark] {
+        currentBook?.bookmarks.sorted { $0.pageNumber < $1.pageNumber } ?? []
+    }
+
+    func toggleBookmark() {
+        guard let book = currentBook else { return }
+
+        if let existing = book.bookmarks.first(where: { $0.pageNumber == currentPage }) {
+            removeBookmark(existing)
+            showToast("Bookmark removed")
+        } else {
+            addBookmark()
+            showToast("Bookmark added")
+        }
+    }
+
     func addBookmark(note: String? = nil) {
         guard let book = currentBook else { return }
 
@@ -185,12 +202,6 @@ final class ReaderViewModel {
         let bookmark = Bookmark(pageNumber: currentPage, note: note)
         book.bookmarks.append(bookmark)
         try? modelContext?.save()
-
-        showBookmarkAdded = true
-        Task {
-            try? await Task.sleep(for: .seconds(1.5))
-            showBookmarkAdded = false
-        }
     }
 
     func removeBookmark(_ bookmark: Bookmark) {
@@ -201,6 +212,19 @@ final class ReaderViewModel {
         }
         book.bookmarks.remove(at: index)
         try? modelContext?.save()
+    }
+
+    func goToBookmark(_ bookmark: Bookmark) {
+        goToPage(bookmark.pageNumber)
+    }
+
+    private func showToast(_ message: String) {
+        bookmarkToastMessage = message
+        showBookmarkToast = true
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            showBookmarkToast = false
+        }
     }
 
     func zoomIn() {

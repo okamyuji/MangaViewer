@@ -41,12 +41,12 @@ struct ReaderView: View {
             }
             .frame(width: 0, height: 0)
 
-            if viewModel.showBookmarkAdded {
+            if viewModel.showBookmarkToast {
                 VStack {
                     Spacer()
                     HStack {
                         Image(systemName: "bookmark.fill")
-                        Text("Bookmark added")
+                        Text(viewModel.bookmarkToastMessage)
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
@@ -54,7 +54,7 @@ struct ReaderView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .padding(.bottom, 60)
                 }
-                .animation(.easeInOut(duration: 0.3), value: viewModel.showBookmarkAdded)
+                .animation(.easeInOut(duration: 0.3), value: viewModel.showBookmarkToast)
             }
         }
         .navigationTitle(book?.title ?? bookTitle ?? "Reader")
@@ -176,7 +176,7 @@ struct ReaderView: View {
             return true
 
         case Self.keyCodeB:
-            viewModel.addBookmark()
+            viewModel.toggleBookmark()
             return true
 
         case Self.keyCode0:

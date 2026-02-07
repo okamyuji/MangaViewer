@@ -204,16 +204,45 @@ struct ReaderToolbar: View {
     }
 
     private var bookmarkButton: some View {
-        Button {
-            viewModel.addBookmark()
-        } label: {
-            Image(
-                systemName: viewModel.hasBookmarkOnCurrentPage
-                    ? "bookmark.fill" : "bookmark"
+        HStack(spacing: 4) {
+            Button {
+                viewModel.toggleBookmark()
+            } label: {
+                Image(
+                    systemName: viewModel.hasBookmarkOnCurrentPage
+                        ? "bookmark.fill" : "bookmark"
+                )
+            }
+            .disabled(!viewModel.canBookmark)
+            .help(
+                viewModel.canBookmark
+                    ? (viewModel.hasBookmarkOnCurrentPage ? "Remove Bookmark (B)" : "Add Bookmark (B)")
+                    : "Bookmarks unavailable for direct opens"
             )
+
+            if viewModel.canBookmark {
+                Menu {
+                    if viewModel.sortedBookmarks.isEmpty {
+                        Text("No bookmarks")
+                    } else {
+                        ForEach(viewModel.sortedBookmarks, id: \.id) { bookmark in
+                            Button {
+                                viewModel.goToBookmark(bookmark)
+                            } label: {
+                                Label(
+                                    "Page \(bookmark.pageNumber + 1)",
+                                    systemImage: "bookmark"
+                                )
+                            }
+                        }
+                    }
+                } label: {
+                    Image(systemName: "list.bullet")
+                        .font(.caption)
+                }
+                .help("Bookmark List")
+            }
         }
-        .disabled(!viewModel.canBookmark)
-        .help(viewModel.canBookmark ? "Add Bookmark (B)" : "Bookmarks unavailable for direct opens")
     }
 
     private var filterButton: some View {
