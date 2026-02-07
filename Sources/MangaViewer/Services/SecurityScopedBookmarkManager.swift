@@ -47,14 +47,18 @@ final class SecurityScopedBookmarkManager: @unchecked Sendable {
                     relativeTo: nil
                 ) {
                     var bookmarks = loadAllBookmarkData()
+                    if url.path != path {
+                        bookmarks.removeValue(forKey: path)
+                    }
                     bookmarks[url.path] = newData
                     saveAllBookmarkData(bookmarks)
                 }
             }
 
-            if url.startAccessingSecurityScopedResource() {
-                activeURLs.insert(url)
+            guard url.startAccessingSecurityScopedResource() else {
+                return nil
             }
+            activeURLs.insert(url)
 
             return url
         }
@@ -98,8 +102,11 @@ final class SecurityScopedBookmarkManager: @unchecked Sendable {
     }
 
     private func saveAllBookmarkData(_ bookmarks: [String: Data]) {
-        if let data = try? JSONEncoder().encode(bookmarks) {
+        do {
+            let data = try JSONEncoder().encode(bookmarks)
             UserDefaults.standard.set(data, forKey: bookmarkKey)
+        } catch {
+            print("Failed to save bookmarks: \(error)")
         }
     }
 }

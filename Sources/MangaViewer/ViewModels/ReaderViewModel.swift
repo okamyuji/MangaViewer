@@ -27,6 +27,11 @@ final class ReaderViewModel {
     private var accessingURL: URL?
 
     func openBook(_ book: Book, modelContext: ModelContext) async {
+        if let previousURL = accessingURL {
+            previousURL.stopAccessingSecurityScopedResource()
+            accessingURL = nil
+        }
+
         self.modelContext = modelContext
         currentBook = book
         currentPage = book.progress?.currentPage ?? 0
@@ -44,8 +49,9 @@ final class ReaderViewModel {
                     relativeTo: nil,
                     bookmarkDataIsStale: &isStale
                 ) {
-                    _ = resolvedURL.startAccessingSecurityScopedResource()
-                    accessingURL = resolvedURL
+                    if resolvedURL.startAccessingSecurityScopedResource() {
+                        accessingURL = resolvedURL
+                    }
                     url = resolvedURL
 
                     if isStale {
