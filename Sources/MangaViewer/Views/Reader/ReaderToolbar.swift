@@ -285,6 +285,10 @@ private struct FilterPopoverContent: View {
         }
         .padding()
         .frame(width: 250)
+        .onDisappear {
+            filterDebounceTask?.cancel()
+            filterDebounceTask = nil
+        }
     }
 
     private func debouncedApplyFilters() {

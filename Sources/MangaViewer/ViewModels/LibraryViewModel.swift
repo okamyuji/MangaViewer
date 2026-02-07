@@ -36,11 +36,21 @@ final class LibraryViewModel {
                 self?.refreshLibrary()
             }
         }
+        settingsViewModel.onFolderRemoved = { [weak self] url in
+            self?.libraryWatcher.unwatch(folder: url)
+        }
     }
 
     func addFolder(_ url: URL) async {
         isImporting = true
         defer { isImporting = false }
+
+        let accessing = url.startAccessingSecurityScopedResource()
+        defer {
+            if accessing {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
 
         let fileManager = FileManager.default
         var isDirectory: ObjCBool = false

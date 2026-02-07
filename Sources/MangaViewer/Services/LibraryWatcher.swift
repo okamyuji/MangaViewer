@@ -9,11 +9,13 @@ private let logger = Logger(
 @Observable
 @MainActor
 final class LibraryWatcher {
-    /// Stored as nonisolated(unsafe) to allow cleanup in nonisolated deinit.
-    /// Thread safety is guaranteed by @MainActor isolation of all methods.
+    /// Protected by `sourcesLock` so `nonisolated deinit` can safely cancel without racing
+    /// with @MainActor-isolated mutations.
     @ObservationIgnored
     private nonisolated(unsafe) var sources: [URL: (source: any DispatchSourceFileSystemObject, fd: Int32)] =
         [:]
+    @ObservationIgnored
+    private let sourcesLock = NSLock()
     private var watchedRoots: Set<URL> = []
     private let debounceInterval: TimeInterval = 2.0
     private var debounceWorkItem: DispatchWorkItem?
@@ -31,22 +33,31 @@ final class LibraryWatcher {
 
         let folderPath = folder.standardizedFileURL.path
         let folderPathSlash = folderPath.hasSuffix("/") ? folderPath : folderPath + "/"
+        sourcesLock.lock()
         let keysToRemove = sources.keys.filter {
             let keyPath = $0.standardizedFileURL.path
             return keyPath == folderPath || keyPath.hasPrefix(folderPathSlash)
         }
+        var removed: [any DispatchSourceFileSystemObject] = []
         for url in keysToRemove {
             if let entry = sources.removeValue(forKey: url) {
-                entry.source.cancel()
+                removed.append(entry.source)
             }
+        }
+        sourcesLock.unlock()
+        for source in removed {
+            source.cancel()
         }
     }
 
     func unwatchAll() {
-        for entry in sources.values {
-            entry.source.cancel()
-        }
+        sourcesLock.lock()
+        let snapshot = sources.values.map(\.source)
         sources.removeAll()
+        sourcesLock.unlock()
+        for source in snapshot {
+            source.cancel()
+        }
         watchedRoots.removeAll()
     }
 
@@ -57,7 +68,10 @@ final class LibraryWatcher {
     }
 
     private func watchDirectory(_ url: URL) {
-        guard sources[url] == nil else { return }
+        sourcesLock.lock()
+        let alreadyWatching = sources[url] != nil
+        sourcesLock.unlock()
+        guard !alreadyWatching else { return }
 
         let accessing = url.startAccessingSecurityScopedResource()
 
@@ -88,7 +102,9 @@ final class LibraryWatcher {
         }
 
         source.resume()
+        sourcesLock.lock()
         sources[url] = (source, fd)
+        sourcesLock.unlock()
     }
 
     private func handleChange() {
@@ -103,8 +119,12 @@ final class LibraryWatcher {
     }
 
     nonisolated deinit {
-        for entry in sources.values {
-            entry.source.cancel()
+        sourcesLock.lock()
+        let snapshot = sources.values.map(\.source)
+        sources.removeAll()
+        sourcesLock.unlock()
+        for source in snapshot {
+            source.cancel()
         }
     }
 }

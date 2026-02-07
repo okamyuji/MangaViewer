@@ -42,8 +42,13 @@ if [ -f "Resources/PrivacyInfo.xcprivacy" ]; then
     echo "📎 Added privacy manifest"
 fi
 
-# Copy Info.plist from the shared source of truth (used by both Xcode and SwiftPM builds)
-cp "Info.plist" "${APP_BUNDLE}/Contents/Info.plist"
+# Generate Info.plist by substituting Xcode build-setting placeholders with concrete values
+sed \
+    -e "s/\$(EXECUTABLE_NAME)/${APP_NAME}/g" \
+    -e "s/\$(PRODUCT_BUNDLE_IDENTIFIER)/work.okamyuji.mangaviewer/g" \
+    -e "s/\$(PRODUCT_NAME)/${APP_NAME}/g" \
+    -e "s/\$(MACOSX_DEPLOYMENT_TARGET)/14.0/g" \
+    "Info.plist" > "${APP_BUNDLE}/Contents/Info.plist"
 
 # Create PkgInfo
 echo -n "APPL????" > "${APP_BUNDLE}/Contents/PkgInfo"

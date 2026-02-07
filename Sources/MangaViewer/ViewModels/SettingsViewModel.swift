@@ -25,6 +25,8 @@ final class SettingsViewModel {
         set { storedZoomMode = newValue.rawValue }
     }
 
+    var onFolderRemoved: ((URL) -> Void)?
+
     var watchedFolders: [URL] {
         get {
             (try? JSONDecoder().decode([URL].self, from: storedWatchedFolders)) ?? []
@@ -49,6 +51,7 @@ final class SettingsViewModel {
         var folders = watchedFolders
         folders.removeAll { $0 == url }
         watchedFolders = folders
+        onFolderRemoved?(url)
     }
 
     func restoreWatchedFolderAccess() async -> [URL] {

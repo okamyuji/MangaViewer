@@ -47,6 +47,9 @@ final class ReaderViewModel {
     private var toastTask: Task<Void, Never>?
 
     func openBook(_ book: Book, modelContext: ModelContext) async {
+        loadingTask?.cancel()
+        loadingTask = nil
+
         if let previousURL = accessingURL {
             previousURL.stopAccessingSecurityScopedResource()
             accessingURL = nil
@@ -113,6 +116,11 @@ final class ReaderViewModel {
     }
 
     func closeBook() {
+        loadingTask?.cancel()
+        loadingTask = nil
+        toastTask?.cancel()
+        toastTask = nil
+
         saveProgress()
         provider?.close()
         provider = nil
