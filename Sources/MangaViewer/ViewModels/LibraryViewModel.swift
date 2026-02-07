@@ -96,12 +96,14 @@ final class LibraryViewModel {
                 totalPages: provider.pageCount
             )
 
-            if let bookmarkData = try? url.bookmarkData(
-                options: .withSecurityScope,
-                includingResourceValuesForKeys: nil,
-                relativeTo: nil
-            ) {
-                book.bookmarkData = bookmarkData
+            do {
+                book.bookmarkData = try url.bookmarkData(
+                    options: .withSecurityScope,
+                    includingResourceValuesForKeys: nil,
+                    relativeTo: nil
+                )
+            } catch {
+                print("Failed to create bookmark for \(book.title): \(error)")
             }
 
             if let thumbnailData = await ThumbnailGenerator.generate(from: provider) {

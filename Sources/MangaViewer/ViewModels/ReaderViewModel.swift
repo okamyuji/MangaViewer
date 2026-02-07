@@ -43,24 +43,31 @@ final class ReaderViewModel {
 
             if let bookmarkData = book.bookmarkData {
                 var isStale = false
-                if let resolvedURL = try? URL(
-                    resolvingBookmarkData: bookmarkData,
-                    options: .withSecurityScope,
-                    relativeTo: nil,
-                    bookmarkDataIsStale: &isStale
-                ) {
+                do {
+                    let resolvedURL = try URL(
+                        resolvingBookmarkData: bookmarkData,
+                        options: .withSecurityScope,
+                        relativeTo: nil,
+                        bookmarkDataIsStale: &isStale
+                    )
                     if resolvedURL.startAccessingSecurityScopedResource() {
                         accessingURL = resolvedURL
                     }
                     url = resolvedURL
 
                     if isStale {
-                        book.bookmarkData = try? url.bookmarkData(
-                            options: .withSecurityScope,
-                            includingResourceValuesForKeys: nil,
-                            relativeTo: nil
-                        )
+                        do {
+                            book.bookmarkData = try url.bookmarkData(
+                                options: .withSecurityScope,
+                                includingResourceValuesForKeys: nil,
+                                relativeTo: nil
+                            )
+                        } catch {
+                            print("Failed to refresh stale bookmark: \(error)")
+                        }
                     }
+                } catch {
+                    print("Failed to resolve bookmark for \(book.filePath): \(error)")
                 }
             }
 

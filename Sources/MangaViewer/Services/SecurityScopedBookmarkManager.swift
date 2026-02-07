@@ -33,12 +33,18 @@ final class SecurityScopedBookmarkManager: @unchecked Sendable {
             guard let data = bookmarks[path] else { return nil }
 
             var isStale = false
-            guard let url = try? URL(
-                resolvingBookmarkData: data,
-                options: .withSecurityScope,
-                relativeTo: nil,
-                bookmarkDataIsStale: &isStale
-            ) else { return nil }
+            let url: URL
+            do {
+                url = try URL(
+                    resolvingBookmarkData: data,
+                    options: .withSecurityScope,
+                    relativeTo: nil,
+                    bookmarkDataIsStale: &isStale
+                )
+            } catch {
+                print("Failed to resolve bookmark for \(path): \(error)")
+                return nil
+            }
 
             if isStale {
                 if let newData = try? url.bookmarkData(
