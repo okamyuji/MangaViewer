@@ -88,6 +88,14 @@ final class ReaderViewModel {
             provider = try ArchiveService.provider(for: url)
             totalPages = provider?.pageCount ?? 0
 
+            if totalPages == 0 {
+                provider?.close()
+                provider = nil
+                errorMessage = "このファイルには表示可能なページがありません。"
+                isLoading = false
+                return
+            }
+
             book.lastOpenedAt = Date()
             try? modelContext.save()
 

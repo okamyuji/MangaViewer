@@ -112,46 +112,39 @@ struct ContentView: View {
         openRequestID += 1
         let requestID = openRequestID
 
-        openFileTask = Task.detached {
-            do {
-                let provider = try ArchiveService.provider(for: url)
-                let thumbnail: NSImage? = if provider.pageCount > 0 {
-                    try? await provider.image(at: 0)
-                } else {
-                    nil
-                }
-                guard !Task.isCancelled else {
-                    provider.close()
-                    if accessing { url.stopAccessingSecurityScopedResource() }
-                    return
-                }
-                await MainActor.run {
-                    guard self.openRequestID == requestID else {
-                        provider.close()
-                        if accessing { url.stopAccessingSecurityScopedResource() }
-                        return
+        // Outer Task inherits MainActor; inner detached task avoids capturing self
+        openFileTask = Task {
+            let result: Result<(PageProvider, NSImage?), Error> = await Task.detached {
+                do {
+                    let provider = try ArchiveService.provider(for: url)
+                    var thumbnail: NSImage?
+                    if provider.pageCount > 0 {
+                        thumbnail = try? await provider.image(at: 0)
                     }
-                    self.directOpenProvider = provider
-                    self.directOpenTitle = title
-                    self.directOpenThumbnail = thumbnail
-                    if accessing {
-                        self.directOpenAccessingURL = url
-                    }
-                    self.isLoading = false
+                    return .success((provider, thumbnail))
+                } catch {
+                    return .failure(error)
                 }
-            } catch {
-                guard !Task.isCancelled else {
-                    if accessing { url.stopAccessingSecurityScopedResource() }
-                    return
-                }
-                await MainActor.run {
-                    guard self.openRequestID == requestID else { return }
-                    if accessing {
-                        url.stopAccessingSecurityScopedResource()
-                    }
-                    self.isLoading = false
-                    self.loadingError = error.localizedDescription
-                }
+            }.value
+
+            // Back on MainActor - check cancellation and stale request
+            guard !Task.isCancelled, openRequestID == requestID else {
+                if case let .success((provider, _)) = result { provider.close() }
+                if accessing { url.stopAccessingSecurityScopedResource() }
+                return
+            }
+
+            switch result {
+            case let .success((provider, thumbnail)):
+                directOpenProvider = provider
+                directOpenTitle = title
+                directOpenThumbnail = thumbnail
+                if accessing { directOpenAccessingURL = url }
+                isLoading = false
+            case let .failure(error):
+                if accessing { url.stopAccessingSecurityScopedResource() }
+                isLoading = false
+                loadingError = error.localizedDescription
             }
         }
     }

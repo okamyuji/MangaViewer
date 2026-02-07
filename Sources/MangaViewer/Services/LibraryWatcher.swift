@@ -19,6 +19,10 @@ final class LibraryWatcher {
     private var watchedRoots: Set<URL> = []
     private let debounceInterval: TimeInterval = 2.0
     private var debounceWorkItem: DispatchWorkItem?
+    /// Maximum number of file descriptors used for watching directories.
+    /// Beyond this limit, only root directories are watched; subdirectory changes
+    /// are picked up by the full rescan triggered via onFilesChanged.
+    private let maxWatchedDirectories = 50
 
     var onFilesChanged: (() -> Void)?
 
@@ -64,6 +68,15 @@ final class LibraryWatcher {
     private func watchDirectoryRecursively(_ url: URL) {
         watchDirectory(url)
 
+        let maxDirs = maxWatchedDirectories
+        sourcesLock.lock()
+        let currentCount = sources.count
+        sourcesLock.unlock()
+        guard currentCount < maxDirs else {
+            logger.info("FD limit reached (\(maxDirs)); skipping subdirectory watchers for \(url.path)")
+            return
+        }
+
         let fileManager = FileManager.default
         guard
             let enumerator = fileManager.enumerator(
@@ -74,6 +87,13 @@ final class LibraryWatcher {
         else { return }
 
         for case let subURL as URL in enumerator {
+            sourcesLock.lock()
+            let count = sources.count
+            sourcesLock.unlock()
+            if count >= maxDirs {
+                logger.info("FD limit reached (\(maxDirs)); remaining subdirectories watched via rescan")
+                break
+            }
             guard
                 let values = try? subURL.resourceValues(forKeys: [.isDirectoryKey]),
                 values.isDirectory == true
