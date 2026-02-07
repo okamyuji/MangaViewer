@@ -152,11 +152,12 @@ struct SidebarView: View {
     }
 
     private func deleteBook(_ book: Book) {
+        let filePath = book.filePath
         Task {
-            await SecurityScopedBookmarkManager.shared.removeBookmark(for: book.filePath)
+            await SecurityScopedBookmarkManager.shared.removeBookmark(for: filePath)
+            modelContext.delete(book)
+            try? modelContext.save()
         }
-        modelContext.delete(book)
-        try? modelContext.save()
     }
 
     private func deleteTag(_ tag: Tag) {

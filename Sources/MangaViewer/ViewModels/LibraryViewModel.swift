@@ -136,7 +136,12 @@ final class LibraryViewModel {
     }
 
     func refreshLibrary() {
-        try? modelContext.save()
+        let folders = settingsViewModel.watchedFolders
+        Task {
+            for folder in folders {
+                await scanFolder(folder)
+            }
+        }
     }
 
     private func restoreWatchedFolders() async {

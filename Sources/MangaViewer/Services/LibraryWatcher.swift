@@ -25,7 +25,12 @@ final class LibraryWatcher {
     func unwatch(folder: URL) {
         watchedRoots.remove(folder)
 
-        let keysToRemove = sources.keys.filter { $0.path.hasPrefix(folder.path) }
+        let folderPath = folder.standardizedFileURL.path
+        let folderPathSlash = folderPath.hasSuffix("/") ? folderPath : folderPath + "/"
+        let keysToRemove = sources.keys.filter {
+            let keyPath = $0.standardizedFileURL.path
+            return keyPath == folderPath || keyPath.hasPrefix(folderPathSlash)
+        }
         for url in keysToRemove {
             if let entry = sources.removeValue(forKey: url) {
                 entry.source.cancel()
@@ -42,22 +47,9 @@ final class LibraryWatcher {
     }
 
     private func watchDirectoryRecursively(_ url: URL) {
+        // Watch only the root directory to conserve file descriptors.
+        // Subdirectory changes are picked up by the full rescan in refreshLibrary().
         watchDirectory(url)
-
-        // Watch subdirectories recursively
-        let fm = FileManager.default
-        guard let enumerator = fm.enumerator(
-            at: url,
-            includingPropertiesForKeys: [.isDirectoryKey],
-            options: [.skipsHiddenFiles]
-        ) else { return }
-
-        for case let subURL as URL in enumerator {
-            var isDir: ObjCBool = false
-            if fm.fileExists(atPath: subURL.path, isDirectory: &isDir), isDir.boolValue {
-                watchDirectory(subURL)
-            }
-        }
     }
 
     private func watchDirectory(_ url: URL) {

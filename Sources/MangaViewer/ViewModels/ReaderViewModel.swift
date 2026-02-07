@@ -35,6 +35,8 @@ final class ReaderViewModel {
 
     /// Whether the current spread display is showing a single wide (landscape) page
     private(set) var isCurrentPageWide: Bool = false
+    /// Whether the display is showing a single page (wide primary or wide secondary)
+    private var displaysSinglePage: Bool = false
 
     private var provider: PageProvider?
     private let imageCache = ImageCache()
@@ -124,10 +126,7 @@ final class ReaderViewModel {
     }
 
     private var currentStep: Int {
-        if !isCurrentPageWide {
-            return 2
-        }
-        return 1
+        displaysSinglePage ? 1 : 2
     }
 
     func nextPage() {
@@ -247,6 +246,7 @@ final class ReaderViewModel {
         guard let provider else { return }
 
         isLoading = true
+        defer { isLoading = false }
 
         await loadSpreadImages()
 
@@ -254,8 +254,6 @@ final class ReaderViewModel {
 
         imageCache.prefetch(around: currentPage, totalPages: totalPages, using: provider)
         saveProgress()
-
-        isLoading = false
     }
 
     private func isLandscapeImage(_ image: NSImage) -> Bool {
@@ -288,6 +286,7 @@ final class ReaderViewModel {
         if let primary = primaryImage, isLandscapeImage(primary) {
             // Wide image detected: show only this page across the full spread
             isCurrentPageWide = true
+            displaysSinglePage = true
             let filtered = applyFilters(to: primary)
             spreadImages = (filtered, nil)
             return
@@ -301,7 +300,8 @@ final class ReaderViewModel {
 
         // If the secondary image is also wide, don't pair them
         if let secondary = secondaryImage, isLandscapeImage(secondary) {
-            // Show only primary page, secondary will be shown on next navigation
+            // Show only primary page; step by 1 so the wide secondary isn't skipped
+            displaysSinglePage = true
             let filteredPrimary = primaryImage.map { applyFilters(to: $0) }
             if readingDirection == .rightToLeft {
                 spreadImages = (nil, filteredPrimary)
@@ -312,6 +312,7 @@ final class ReaderViewModel {
         }
 
         // Normal spread: two portrait pages side by side
+        displaysSinglePage = false
         let filteredPrimary = primaryImage.map { applyFilters(to: $0) }
         let filteredSecondary = secondaryImage.map { applyFilters(to: $0) }
 
