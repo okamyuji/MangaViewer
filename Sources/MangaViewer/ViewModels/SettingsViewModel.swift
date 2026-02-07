@@ -43,6 +43,7 @@ final class SettingsViewModel {
     }
 
     func addWatchedFolder(_ url: URL) {
+        SecurityScopedBookmarkManager.shared.saveBookmark(for: url)
         var folders = watchedFolders
         if !folders.contains(url) {
             folders.append(url)
@@ -51,8 +52,16 @@ final class SettingsViewModel {
     }
 
     func removeWatchedFolder(_ url: URL) {
+        SecurityScopedBookmarkManager.shared.removeBookmark(for: url.path)
+        SecurityScopedBookmarkManager.shared.stopAccessing(url: url)
         var folders = watchedFolders
         folders.removeAll { $0 == url }
         watchedFolders = folders
+    }
+
+    func restoreWatchedFolderAccess() -> [URL] {
+        watchedFolders.compactMap { folder in
+            SecurityScopedBookmarkManager.shared.startAccessing(path: folder.path)
+        }
     }
 }

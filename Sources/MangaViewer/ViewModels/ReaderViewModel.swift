@@ -24,6 +24,8 @@ final class ReaderViewModel {
     private let imageCache = ImageCache()
     private var modelContext: ModelContext?
 
+    private var accessingURL: URL?
+
     func openBook(_ book: Book, modelContext: ModelContext) async {
         self.modelContext = modelContext
         currentBook = book
@@ -32,7 +34,30 @@ final class ReaderViewModel {
         errorMessage = nil
 
         do {
-            let url = URL(fileURLWithPath: book.filePath)
+            var url = URL(fileURLWithPath: book.filePath)
+
+            if let bookmarkData = book.bookmarkData {
+                var isStale = false
+                if let resolvedURL = try? URL(
+                    resolvingBookmarkData: bookmarkData,
+                    options: .withSecurityScope,
+                    relativeTo: nil,
+                    bookmarkDataIsStale: &isStale
+                ) {
+                    _ = resolvedURL.startAccessingSecurityScopedResource()
+                    accessingURL = resolvedURL
+                    url = resolvedURL
+
+                    if isStale {
+                        book.bookmarkData = try? url.bookmarkData(
+                            options: .withSecurityScope,
+                            includingResourceValuesForKeys: nil,
+                            relativeTo: nil
+                        )
+                    }
+                }
+            }
+
             provider = try ArchiveService.provider(for: url)
             totalPages = provider?.pageCount ?? 0
 
@@ -67,6 +92,11 @@ final class ReaderViewModel {
         currentImage = nil
         spreadImages = (nil, nil)
         imageCache.clear()
+
+        if let url = accessingURL {
+            url.stopAccessingSecurityScopedResource()
+            accessingURL = nil
+        }
     }
 
     func nextPage() {

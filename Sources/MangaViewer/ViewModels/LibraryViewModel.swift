@@ -30,6 +30,8 @@ final class LibraryViewModel {
         isImporting = true
         defer { isImporting = false }
 
+        SecurityScopedBookmarkManager.shared.saveBookmark(for: url)
+
         let fileManager = FileManager.default
         var isDirectory: ObjCBool = false
 
@@ -94,6 +96,14 @@ final class LibraryViewModel {
                 totalPages: provider.pageCount
             )
 
+            if let bookmarkData = try? url.bookmarkData(
+                options: .withSecurityScope,
+                includingResourceValuesForKeys: nil,
+                relativeTo: nil
+            ) {
+                book.bookmarkData = bookmarkData
+            }
+
             if let thumbnailData = await ThumbnailGenerator.generate(from: provider) {
                 book.thumbnailData = thumbnailData
             }
@@ -109,6 +119,7 @@ final class LibraryViewModel {
     }
 
     func removeBook(_ book: Book) {
+        SecurityScopedBookmarkManager.shared.removeBookmark(for: book.filePath)
         modelContext.delete(book)
         try? modelContext.save()
     }

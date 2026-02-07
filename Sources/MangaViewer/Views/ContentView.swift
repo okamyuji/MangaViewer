@@ -89,6 +89,8 @@ struct ContentView: View {
         isLoading = true
         loadingError = nil
 
+        SecurityScopedBookmarkManager.shared.saveBookmark(for: url)
+
         Task {
             do {
                 let provider = try ArchiveService.provider(for: url)

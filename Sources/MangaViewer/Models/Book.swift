@@ -7,6 +7,7 @@ final class Book {
     var title: String
     var filePath: String
     @Attribute(.externalStorage) var thumbnailData: Data?
+    var bookmarkData: Data?
     var addedAt: Date
     var lastOpenedAt: Date?
     var totalPages: Int
