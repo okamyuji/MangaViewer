@@ -30,8 +30,6 @@ final class LibraryViewModel {
         isImporting = true
         defer { isImporting = false }
 
-        SecurityScopedBookmarkManager.shared.saveBookmark(for: url)
-
         let fileManager = FileManager.default
         var isDirectory: ObjCBool = false
 
@@ -40,6 +38,7 @@ final class LibraryViewModel {
         }
 
         if isDirectory.boolValue {
+            SecurityScopedBookmarkManager.shared.saveBookmark(for: url)
             await scanFolder(url)
         } else {
             await addBook(at: url)
