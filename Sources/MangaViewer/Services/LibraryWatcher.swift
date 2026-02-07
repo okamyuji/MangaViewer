@@ -62,9 +62,24 @@ final class LibraryWatcher {
     }
 
     private func watchDirectoryRecursively(_ url: URL) {
-        // Watch only the root directory to conserve file descriptors.
-        // Subdirectory changes are picked up by the full rescan in refreshLibrary().
         watchDirectory(url)
+
+        let fileManager = FileManager.default
+        guard
+            let enumerator = fileManager.enumerator(
+                at: url,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            )
+        else { return }
+
+        for case let subURL as URL in enumerator {
+            guard
+                let values = try? subURL.resourceValues(forKeys: [.isDirectoryKey]),
+                values.isDirectory == true
+            else { continue }
+            watchDirectory(subURL)
+        }
     }
 
     private func watchDirectory(_ url: URL) {

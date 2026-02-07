@@ -91,6 +91,14 @@ struct ContentView: View {
     }
 
     private func openFileDirectly(_ url: URL) {
+        // Close existing provider/access before opening a new file
+        directOpenProvider?.close()
+        directOpenProvider = nil
+        if let previousURL = directOpenAccessingURL {
+            previousURL.stopAccessingSecurityScopedResource()
+            directOpenAccessingURL = nil
+        }
+
         isLoading = true
         loadingError = nil
 

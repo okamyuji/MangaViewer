@@ -55,7 +55,7 @@ final class ReaderViewModel {
             accessingURL = nil
         }
 
-        imageCache.clear()
+        await imageCache.clear()
         self.modelContext = modelContext
         currentBook = book
         currentPage = book.progress?.currentPage ?? 0
@@ -126,11 +126,14 @@ final class ReaderViewModel {
         provider = nil
         currentBook = nil
         spreadImages = (nil, nil)
-        imageCache.clear()
 
-        if let url = accessingURL {
-            accessingURL = nil
-            Task {
+        let cache = imageCache
+        let url = accessingURL
+        accessingURL = nil
+
+        Task {
+            await cache.clear()
+            if let url {
                 await SecurityScopedBookmarkManager.shared.stopAccessing(url: url)
             }
         }
@@ -159,6 +162,7 @@ final class ReaderViewModel {
     }
 
     func goToPage(_ page: Int) {
+        guard totalPages > 0 else { return }
         let clampedPage = max(0, min(page, totalPages - 1))
         if clampedPage != currentPage {
             currentPage = clampedPage
