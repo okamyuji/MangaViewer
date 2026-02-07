@@ -40,6 +40,22 @@ struct ReaderView: View {
                 handleKeyCode(keyCode)
             }
             .frame(width: 0, height: 0)
+
+            if viewModel.showBookmarkAdded {
+                VStack {
+                    Spacer()
+                    HStack {
+                        Image(systemName: "bookmark.fill")
+                        Text("Bookmark added")
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .padding(.bottom, 60)
+                }
+                .animation(.easeInOut(duration: 0.3), value: viewModel.showBookmarkAdded)
+            }
         }
         .navigationTitle(book?.title ?? bookTitle ?? "Reader")
         .navigationBarBackButtonHidden(viewModel.isFullScreen)
@@ -152,11 +168,11 @@ struct ReaderView: View {
             return true
 
         case Self.keyCode1:
-            viewModel.displayMode = .single
+            viewModel.setDisplayMode(.single)
             return true
 
         case Self.keyCode2:
-            viewModel.displayMode = .spread
+            viewModel.setDisplayMode(.spread)
             return true
 
         case Self.keyCodeB:

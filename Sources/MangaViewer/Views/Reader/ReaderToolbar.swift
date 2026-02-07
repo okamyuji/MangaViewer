@@ -145,7 +145,7 @@ struct ReaderToolbar: View {
         HStack(spacing: 4) {
             ForEach(DisplayMode.allCases) { mode in
                 Button {
-                    viewModel.displayMode = mode
+                    viewModel.setDisplayMode(mode)
                 } label: {
                     Image(systemName: mode.icon)
                 }
@@ -159,7 +159,7 @@ struct ReaderToolbar: View {
             Menu {
                 ForEach(ReadingDirection.allCases) { direction in
                     Button {
-                        viewModel.readingDirection = direction
+                        viewModel.setReadingDirection(direction)
                     } label: {
                         Label(direction.label, systemImage: direction.icon)
                     }
@@ -207,9 +207,13 @@ struct ReaderToolbar: View {
         Button {
             viewModel.addBookmark()
         } label: {
-            Image(systemName: "bookmark")
+            Image(
+                systemName: viewModel.hasBookmarkOnCurrentPage
+                    ? "bookmark.fill" : "bookmark"
+            )
         }
-        .help("Add Bookmark (B)")
+        .disabled(!viewModel.canBookmark)
+        .help(viewModel.canBookmark ? "Add Bookmark (B)" : "Bookmarks unavailable for direct opens")
     }
 
     private var filterButton: some View {
@@ -217,17 +221,30 @@ struct ReaderToolbar: View {
             VStack {
                 Text("Brightness: \(Int(viewModel.filterSettings.brightness * 100))")
                 Slider(value: $viewModel.filterSettings.brightness, in: -1 ... 1)
+                    .onChange(of: viewModel.filterSettings.brightness) {
+                        viewModel.applyCurrentFilters()
+                    }
 
                 Text("Contrast: \(Int(viewModel.filterSettings.contrast * 100))")
                 Slider(value: $viewModel.filterSettings.contrast, in: 0.5 ... 2)
+                    .onChange(of: viewModel.filterSettings.contrast) {
+                        viewModel.applyCurrentFilters()
+                    }
 
                 Text("Sepia: \(Int(viewModel.filterSettings.sepia * 100))")
                 Slider(value: $viewModel.filterSettings.sepia, in: 0 ... 1)
+                    .onChange(of: viewModel.filterSettings.sepia) {
+                        viewModel.applyCurrentFilters()
+                    }
 
                 Toggle("Grayscale", isOn: $viewModel.filterSettings.grayscale)
+                    .onChange(of: viewModel.filterSettings.grayscale) {
+                        viewModel.applyCurrentFilters()
+                    }
 
                 Button("Reset Filters") {
                     viewModel.filterSettings = .default
+                    viewModel.applyCurrentFilters()
                 }
             }
             .padding()

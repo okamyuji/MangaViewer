@@ -179,6 +179,121 @@ struct ImageFilterSettingsTests {
     }
 }
 
+@Suite("ReaderViewModel Tests")
+struct ReaderViewModelTests {
+    @Test("setDisplayMode changes mode and differs from initial")
+    @MainActor
+    func setDisplayModeChangesMode() {
+        let vm = ReaderViewModel()
+        #expect(vm.displayMode == .spread)
+
+        vm.setDisplayMode(.single)
+        #expect(vm.displayMode == .single)
+
+        vm.setDisplayMode(.spread)
+        #expect(vm.displayMode == .spread)
+    }
+
+    @Test("setDisplayMode does not change if same mode")
+    @MainActor
+    func setDisplayModeSameMode() {
+        let vm = ReaderViewModel()
+        vm.setDisplayMode(.spread)
+        #expect(vm.displayMode == .spread)
+    }
+
+    @Test("toggleDisplayMode switches between single and spread")
+    @MainActor
+    func toggleDisplayMode() {
+        let vm = ReaderViewModel()
+        #expect(vm.displayMode == .spread)
+
+        vm.toggleDisplayMode()
+        #expect(vm.displayMode == .single)
+
+        vm.toggleDisplayMode()
+        #expect(vm.displayMode == .spread)
+    }
+
+    @Test("setReadingDirection changes direction")
+    @MainActor
+    func setReadingDirection() {
+        let vm = ReaderViewModel()
+        #expect(vm.readingDirection == .rightToLeft)
+
+        vm.setReadingDirection(.leftToRight)
+        #expect(vm.readingDirection == .leftToRight)
+
+        vm.setReadingDirection(.rightToLeft)
+        #expect(vm.readingDirection == .rightToLeft)
+    }
+
+    @Test("setReadingDirection does not change if same direction")
+    @MainActor
+    func setReadingDirectionSame() {
+        let vm = ReaderViewModel()
+        vm.setReadingDirection(.rightToLeft)
+        #expect(vm.readingDirection == .rightToLeft)
+    }
+
+    @Test("canBookmark is false when currentBook is nil")
+    @MainActor
+    func canBookmarkWithoutBook() {
+        let vm = ReaderViewModel()
+        #expect(vm.canBookmark == false)
+    }
+
+    @Test("hasBookmarkOnCurrentPage is false when currentBook is nil")
+    @MainActor
+    func hasBookmarkWithoutBook() {
+        let vm = ReaderViewModel()
+        #expect(vm.hasBookmarkOnCurrentPage == false)
+    }
+
+    @Test("addBookmark does nothing when currentBook is nil")
+    @MainActor
+    func addBookmarkWithoutBook() {
+        let vm = ReaderViewModel()
+        vm.addBookmark()
+        #expect(vm.showBookmarkAdded == false)
+    }
+
+    @Test("page navigation respects bounds")
+    @MainActor
+    func pageNavigationBounds() {
+        let vm = ReaderViewModel()
+        vm.totalPages = 5
+        vm.currentPage = 0
+
+        vm.previousPage()
+        #expect(vm.currentPage == 0)
+
+        vm.goToPage(10)
+        #expect(vm.currentPage == 4)
+
+        vm.goToPage(-1)
+        #expect(vm.currentPage == 0)
+    }
+
+    @Test("zoom in and out change scale")
+    @MainActor
+    func zoomInOut() {
+        let vm = ReaderViewModel()
+        let initialScale = vm.zoomScale
+
+        vm.zoomIn()
+        #expect(vm.zoomScale > initialScale)
+        #expect(vm.zoomMode == .custom)
+
+        vm.resetZoom()
+        #expect(vm.zoomScale == 1.0)
+        #expect(vm.zoomMode == .fitPage)
+
+        vm.zoomOut()
+        #expect(vm.zoomScale < 1.0)
+    }
+}
+
 @Suite("Color Extension Tests")
 struct ColorExtensionTests {
     @Test("Color initializes from valid hex")

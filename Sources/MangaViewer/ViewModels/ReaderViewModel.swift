@@ -24,6 +24,15 @@ final class ReaderViewModel {
     var spreadImages: (left: NSImage?, right: NSImage?) = (nil, nil)
     var isLoading: Bool = false
     var errorMessage: String?
+    var showBookmarkAdded: Bool = false
+
+    var canBookmark: Bool {
+        currentBook != nil
+    }
+
+    var hasBookmarkOnCurrentPage: Bool {
+        currentBook?.bookmarks.contains { $0.pageNumber == currentPage } ?? false
+    }
 
     private var provider: PageProvider?
     private let imageCache = ImageCache()
@@ -134,8 +143,23 @@ final class ReaderViewModel {
         }
     }
 
+    func setDisplayMode(_ mode: DisplayMode) {
+        guard mode != displayMode else { return }
+        displayMode = mode
+        Task { await loadCurrentPage() }
+    }
+
     func toggleDisplayMode() {
-        displayMode = displayMode == .single ? .spread : .single
+        setDisplayMode(displayMode == .single ? .spread : .single)
+    }
+
+    func setReadingDirection(_ direction: ReadingDirection) {
+        guard direction != readingDirection else { return }
+        readingDirection = direction
+        Task { await loadCurrentPage() }
+    }
+
+    func applyCurrentFilters() {
         Task { await loadCurrentPage() }
     }
 
@@ -146,9 +170,19 @@ final class ReaderViewModel {
     func addBookmark(note: String? = nil) {
         guard let book = currentBook else { return }
 
+        if book.bookmarks.contains(where: { $0.pageNumber == currentPage }) {
+            return
+        }
+
         let bookmark = Bookmark(pageNumber: currentPage, note: note)
         book.bookmarks.append(bookmark)
         try? modelContext?.save()
+
+        showBookmarkAdded = true
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            showBookmarkAdded = false
+        }
     }
 
     func removeBookmark(_ bookmark: Bookmark) {
