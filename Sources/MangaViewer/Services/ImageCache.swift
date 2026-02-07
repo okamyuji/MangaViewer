@@ -115,8 +115,8 @@ final class ImageCache: @unchecked Sendable {
     }
 
     func clear() async {
-        cache.removeAllObjects()
         await actor.incrementGeneration()
         await actor.cancelAllTasks()
+        cache.removeAllObjects()
     }
 }

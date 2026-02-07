@@ -19,6 +19,10 @@ final class LibraryViewModel {
     private let libraryWatcher = LibraryWatcher()
 
     private let settingsViewModel = SettingsViewModel()
+    private var isRefreshing = false
+
+    @ObservationIgnored
+    private var folderRemovedObserver: (any NSObjectProtocol)?
 
     init(modelContext: ModelContext, startWatching: Bool = true) {
         self.modelContext = modelContext
@@ -36,8 +40,15 @@ final class LibraryViewModel {
                 self?.refreshLibrary()
             }
         }
-        settingsViewModel.onFolderRemoved = { [weak self] url in
-            self?.libraryWatcher.unwatch(folder: url)
+        folderRemovedObserver = NotificationCenter.default.addObserver(
+            forName: .watchedFolderRemoved,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let url = notification.object as? URL else { return }
+            Task { @MainActor in
+                self?.libraryWatcher.unwatch(folder: url)
+            }
         }
     }
 
@@ -148,21 +159,24 @@ final class LibraryViewModel {
     }
 
     func refreshLibrary() {
+        guard !isRefreshing else { return }
+        isRefreshing = true
         let folders = settingsViewModel.watchedFolders
         Task {
             for folder in folders {
                 await scanFolder(folder)
             }
+            isRefreshing = false
         }
     }
 
     private func restoreWatchedFolders() async {
         let urls = await settingsViewModel.restoreWatchedFolderAccess()
         for url in urls {
-            // Stop the BookmarkManager's access since the watcher manages its own access
-            await SecurityScopedBookmarkManager.shared.stopAccessing(url: url)
             libraryWatcher.watch(folder: url)
             await scanFolder(url)
+            // Balance the startAccessing call; watcher manages its own access per-directory
+            await SecurityScopedBookmarkManager.shared.stopAccessing(url: url)
         }
     }
 

@@ -269,14 +269,16 @@ final class ReaderViewModel {
         guard let provider else { return }
 
         isLoading = true
-        defer { isLoading = false }
 
         await loadSpreadImages()
 
+        // If cancelled (replaced by a newer loadCurrentPage task), exit without
+        // touching isLoading — the replacement task owns the flag now.
         guard !Task.isCancelled else { return }
 
         imageCache.prefetch(around: currentPage, totalPages: totalPages, using: provider)
         saveProgress()
+        isLoading = false
     }
 
     private func isLandscapeImage(_ image: NSImage) -> Bool {

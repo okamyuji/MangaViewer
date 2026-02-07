@@ -2,6 +2,10 @@ import AppKit
 import Foundation
 import SwiftUI
 
+extension Notification.Name {
+    static let watchedFolderRemoved = Notification.Name("MangaViewerWatchedFolderRemoved")
+}
+
 @Observable
 @MainActor
 final class SettingsViewModel {
@@ -24,8 +28,6 @@ final class SettingsViewModel {
         get { ZoomMode(rawValue: storedZoomMode) ?? .fitPage }
         set { storedZoomMode = newValue.rawValue }
     }
-
-    var onFolderRemoved: ((URL) -> Void)?
 
     var watchedFolders: [URL] {
         get {
@@ -51,7 +53,7 @@ final class SettingsViewModel {
         var folders = watchedFolders
         folders.removeAll { $0 == url }
         watchedFolders = folders
-        onFolderRemoved?(url)
+        NotificationCenter.default.post(name: .watchedFolderRemoved, object: url)
     }
 
     func restoreWatchedFolderAccess() async -> [URL] {
@@ -63,10 +65,9 @@ final class SettingsViewModel {
                 path: folder.path
             ) {
                 urls.append(result.url)
-                if let oldPath = result.oldPath, result.url != folder {
+                if result.oldPath != nil {
                     folders[index] = result.url
                     updated = true
-                    _ = oldPath // Consumed by bookmark manager internally
                 }
             }
         }

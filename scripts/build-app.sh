@@ -42,7 +42,7 @@ if [ -f "Resources/PrivacyInfo.xcprivacy" ]; then
     echo "📎 Added privacy manifest"
 fi
 
-# Generate Info.plist using PlistBuddy to safely set concrete values
+# Generate Info.plist using PlistBuddy to replace all Xcode build-setting placeholders
 PLIST="${APP_BUNDLE}/Contents/Info.plist"
 cp "Info.plist" "${PLIST}"
 BUDDY=/usr/libexec/PlistBuddy
@@ -50,6 +50,9 @@ ${BUDDY} -c "Set :CFBundleExecutable ${APP_NAME}" "${PLIST}"
 ${BUDDY} -c "Set :CFBundleIdentifier work.okamyuji.mangaviewer" "${PLIST}"
 ${BUDDY} -c "Set :CFBundleName ${APP_NAME}" "${PLIST}"
 ${BUDDY} -c "Set :LSMinimumSystemVersion 14.0" "${PLIST}"
+# SwiftPM builds use .icns directly instead of Asset Catalog
+${BUDDY} -c "Delete :CFBundleIconName" "${PLIST}" 2>/dev/null || true
+${BUDDY} -c "Add :CFBundleIconFile string AppIcon" "${PLIST}" 2>/dev/null || true
 
 # Create PkgInfo
 echo -n "APPL????" > "${APP_BUNDLE}/Contents/PkgInfo"
