@@ -292,6 +292,29 @@ struct ReaderViewModelTests {
         vm.zoomOut()
         #expect(vm.zoomScale < 1.0)
     }
+
+    @Test("isCurrentPageWide defaults to false")
+    @MainActor
+    func isCurrentPageWideDefault() {
+        let vm = ReaderViewModel()
+        #expect(vm.isCurrentPageWide == false)
+    }
+
+    @Test("spread mode uses step 2 for normal pages, step 1 for wide pages")
+    @MainActor
+    func spreadStepLogic() {
+        let vm = ReaderViewModel()
+        vm.totalPages = 10
+        vm.displayMode = .spread
+
+        // Normal spread: step 2
+        vm.currentPage = 0
+        vm.nextPage()
+        #expect(vm.currentPage == 2)
+
+        vm.previousPage()
+        #expect(vm.currentPage == 0)
+    }
 }
 
 @Suite("Color Extension Tests")

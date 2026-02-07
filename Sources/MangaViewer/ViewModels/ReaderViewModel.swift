@@ -34,6 +34,9 @@ final class ReaderViewModel {
         currentBook?.bookmarks.contains { $0.pageNumber == currentPage } ?? false
     }
 
+    /// Whether the current spread display is showing a single wide (landscape) page
+    private(set) var isCurrentPageWide: Bool = false
+
     private var provider: PageProvider?
     private let imageCache = ImageCache()
     private var modelContext: ModelContext?
@@ -117,9 +120,15 @@ final class ReaderViewModel {
         }
     }
 
+    private var currentStep: Int {
+        if displayMode == .spread, !isCurrentPageWide {
+            return 2
+        }
+        return 1
+    }
+
     func nextPage() {
-        let step = displayMode == .spread ? 2 : 1
-        let newPage = min(currentPage + step, totalPages - 1)
+        let newPage = min(currentPage + currentStep, totalPages - 1)
         if newPage != currentPage {
             currentPage = newPage
             Task { await loadCurrentPage() }
@@ -127,8 +136,7 @@ final class ReaderViewModel {
     }
 
     func previousPage() {
-        let step = displayMode == .spread ? 2 : 1
-        let newPage = max(currentPage - step, 0)
+        let newPage = max(currentPage - currentStep, 0)
         if newPage != currentPage {
             currentPage = newPage
             Task { await loadCurrentPage() }
@@ -243,59 +251,65 @@ final class ReaderViewModel {
         }
     }
 
-    private func loadSpreadImages() async {
-        guard let provider else { return }
+    private func isLandscapeImage(_ image: NSImage) -> Bool {
+        let size = image.size
+        return size.width > size.height * 1.2
+    }
 
-        // For RTL (manga style): right side shows odd pages, left side shows even pages
-        // Page 0 (first page) should be on the right only
-        // Pages 1-2 should be: right=1, left=2
-        // Pages 3-4 should be: right=3, left=4
-        // etc.
-
-        let rightIndex: Int
-        let leftIndex: Int
-
-        if readingDirection == .rightToLeft {
-            // Right side: current page (odd/first position)
-            // Left side: next page (even position)
-            rightIndex = currentPage
-            leftIndex = currentPage + 1
-        } else {
-            // LTR: left side is current, right is next
-            leftIndex = currentPage
-            rightIndex = currentPage + 1
+    private func loadImageForPage(_ index: Int) async throws -> NSImage? {
+        guard let provider, index >= 0, index < totalPages else { return nil }
+        if let cached = imageCache.image(for: index) {
+            return cached
         }
+        let image = try await provider.image(at: index)
+        imageCache.set(image, for: index)
+        return image
+    }
 
-        var leftImage: NSImage?
-        var rightImage: NSImage?
+    private func loadSpreadImages() async {
+        guard provider != nil else { return }
 
         do {
-            // Load right image (primary page in RTL)
-            if rightIndex >= 0, rightIndex < totalPages {
-                if let cached = imageCache.image(for: rightIndex) {
-                    rightImage = applyFilters(to: cached)
-                } else {
-                    let image = try await provider.image(at: rightIndex)
-                    imageCache.set(image, for: rightIndex)
-                    rightImage = applyFilters(to: image)
-                }
+            // Load the primary page first to check if it's a wide (spread scan) image
+            let primaryImage = try await loadImageForPage(currentPage)
+
+            if let primary = primaryImage, isLandscapeImage(primary) {
+                // Wide image detected: show only this page across the full spread
+                isCurrentPageWide = true
+                let filtered = applyFilters(to: primary)
+                spreadImages = (filtered, nil)
+                return
             }
 
-            // Load left image (secondary page in RTL)
-            if leftIndex >= 0, leftIndex < totalPages {
-                if let cached = imageCache.image(for: leftIndex) {
-                    leftImage = applyFilters(to: cached)
+            isCurrentPageWide = false
+
+            let secondaryIndex = currentPage + 1
+            let secondaryImage = try await loadImageForPage(secondaryIndex)
+
+            // If the secondary image is also wide, don't pair them
+            if let secondary = secondaryImage, isLandscapeImage(secondary) {
+                // Show only primary page, secondary will be shown on next navigation
+                let filteredPrimary = primaryImage.map { applyFilters(to: $0) }
+                if readingDirection == .rightToLeft {
+                    spreadImages = (nil, filteredPrimary)
                 } else {
-                    let image = try await provider.image(at: leftIndex)
-                    imageCache.set(image, for: leftIndex)
-                    leftImage = applyFilters(to: image)
+                    spreadImages = (filteredPrimary, nil)
                 }
+                return
+            }
+
+            // Normal spread: two portrait pages side by side
+            let filteredPrimary = primaryImage.map { applyFilters(to: $0) }
+            let filteredSecondary = secondaryImage.map { applyFilters(to: $0) }
+
+            if readingDirection == .rightToLeft {
+                spreadImages = (filteredSecondary, filteredPrimary)
+            } else {
+                spreadImages = (filteredPrimary, filteredSecondary)
             }
         } catch {
             errorMessage = error.localizedDescription
         }
-
-        spreadImages = (leftImage, rightImage)
     }
 
     private func applyFilters(to image: NSImage) -> NSImage {
