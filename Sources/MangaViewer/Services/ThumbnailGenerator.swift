@@ -29,17 +29,15 @@ enum ThumbnailGenerator {
             height: imageSize.height * ratio
         )
 
-        let newImage = NSImage(size: newSize)
-        newImage.lockFocus()
-        NSGraphicsContext.current?.imageInterpolation = .high
-        image.draw(
-            in: NSRect(origin: .zero, size: newSize),
-            from: NSRect(origin: .zero, size: imageSize),
-            operation: .copy,
-            fraction: 1.0
-        )
-        newImage.unlockFocus()
-
-        return newImage
+        return NSImage(size: newSize, flipped: false) { drawRect in
+            NSGraphicsContext.current?.imageInterpolation = .high
+            image.draw(
+                in: drawRect,
+                from: NSRect(origin: .zero, size: imageSize),
+                operation: .copy,
+                fraction: 1.0
+            )
+            return true
+        }
     }
 }

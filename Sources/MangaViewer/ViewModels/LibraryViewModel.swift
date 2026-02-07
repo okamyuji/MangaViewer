@@ -20,11 +20,13 @@ final class LibraryViewModel {
 
     private let settingsViewModel = SettingsViewModel()
 
-    init(modelContext: ModelContext) {
+    init(modelContext: ModelContext, startWatching: Bool = true) {
         self.modelContext = modelContext
-        setupWatcher()
-        Task {
-            await restoreWatchedFolders()
+        if startWatching {
+            setupWatcher()
+            Task {
+                await restoreWatchedFolders()
+            }
         }
     }
 

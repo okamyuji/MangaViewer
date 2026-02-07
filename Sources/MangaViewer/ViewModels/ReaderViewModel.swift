@@ -52,6 +52,7 @@ final class ReaderViewModel {
             accessingURL = nil
         }
 
+        imageCache.clear()
         self.modelContext = modelContext
         currentBook = book
         currentPage = book.progress?.currentPage ?? 0
@@ -325,32 +326,30 @@ final class ReaderViewModel {
 
     private func createErrorPlaceholder(page: Int, error: Error) -> NSImage {
         let size = NSSize(width: 800, height: 1200)
-        let image = NSImage(size: size)
-        image.lockFocus()
+        return NSImage(size: size, flipped: true) { drawRect in
+            NSColor.windowBackgroundColor.setFill()
+            NSBezierPath.fill(drawRect)
 
-        NSColor.windowBackgroundColor.setFill()
-        NSBezierPath.fill(NSRect(origin: .zero, size: size))
+            let iconRect = NSRect(x: 350, y: 450, width: 100, height: 100)
+            if let symbol = NSImage(
+                systemSymbolName: "exclamationmark.triangle",
+                accessibilityDescription: nil
+            ) {
+                symbol.draw(in: iconRect)
+            }
 
-        let iconRect = NSRect(x: 350, y: 650, width: 100, height: 100)
-        if let symbol = NSImage(
-            systemSymbolName: "exclamationmark.triangle",
-            accessibilityDescription: nil
-        ) {
-            symbol.draw(in: iconRect)
+            let style = NSMutableParagraphStyle()
+            style.alignment = .center
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: 14),
+                .foregroundColor: NSColor.secondaryLabelColor,
+                .paragraphStyle: style
+            ]
+            let text = "Page \(page + 1)\n\(error.localizedDescription)"
+            text.draw(in: NSRect(x: 50, y: 560, width: 700, height: 80), withAttributes: attrs)
+
+            return true
         }
-
-        let style = NSMutableParagraphStyle()
-        style.alignment = .center
-        let attrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 14),
-            .foregroundColor: NSColor.secondaryLabelColor,
-            .paragraphStyle: style
-        ]
-        let text = "Page \(page + 1)\n\(error.localizedDescription)"
-        text.draw(in: NSRect(x: 50, y: 560, width: 700, height: 80), withAttributes: attrs)
-
-        image.unlockFocus()
-        return image
     }
 
     private func applyFilters(to image: NSImage) -> NSImage {
@@ -366,7 +365,7 @@ final class ReaderViewModel {
 
         book.progress?.currentPage = currentPage
         book.progress?.updatedAt = Date()
-        book.progress?.isCompleted = currentPage >= totalPages - 1
+        book.progress?.isCompleted = currentPage + currentStep >= totalPages
 
         try? modelContext?.save()
     }

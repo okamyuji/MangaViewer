@@ -35,6 +35,7 @@ final class ImageCache: @unchecked Sendable {
     private let cache = NSCache<NSNumber, NSImage>()
     private let prefetchCount = 3
     private let actor = ImageCacheActor()
+    private var generation: Int = 0
 
     init() {
         cache.countLimit = 50
@@ -51,6 +52,7 @@ final class ImageCache: @unchecked Sendable {
     }
 
     func prefetch(around index: Int, totalPages: Int, using provider: PageProvider) {
+        let currentGen = generation
         Task {
             await actor.cancelOutOfRangeTasks(currentIndex: index, prefetchCount: prefetchCount)
 
@@ -68,7 +70,7 @@ final class ImageCache: @unchecked Sendable {
                     guard let self else { return }
                     do {
                         let image = try await provider.image(at: prefetchIndex)
-                        if !Task.isCancelled {
+                        if !Task.isCancelled, self.generation == currentGen {
                             self.set(image, for: prefetchIndex)
                         }
                     } catch {
@@ -104,9 +106,10 @@ final class ImageCache: @unchecked Sendable {
     }
 
     func clear() {
+        generation += 1
+        cache.removeAllObjects()
         Task {
             await actor.cancelAllTasks()
         }
-        cache.removeAllObjects()
     }
 }

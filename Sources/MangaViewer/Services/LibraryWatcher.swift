@@ -9,7 +9,11 @@ private let logger = Logger(
 @Observable
 @MainActor
 final class LibraryWatcher {
-    private var sources: [URL: (source: any DispatchSourceFileSystemObject, fd: Int32)] = [:]
+    /// Stored as nonisolated(unsafe) to allow cleanup in nonisolated deinit.
+    /// Thread safety is guaranteed by @MainActor isolation of all methods.
+    @ObservationIgnored
+    private nonisolated(unsafe) var sources: [URL: (source: any DispatchSourceFileSystemObject, fd: Int32)] =
+        [:]
     private var watchedRoots: Set<URL> = []
     private let debounceInterval: TimeInterval = 2.0
     private var debounceWorkItem: DispatchWorkItem?
@@ -99,7 +103,8 @@ final class LibraryWatcher {
     }
 
     nonisolated deinit {
-        // DispatchSource cancel handlers handle fd close and resource cleanup
-        // Sources are cleaned up via unwatchAll() during app lifecycle
+        for entry in sources.values {
+            entry.source.cancel()
+        }
     }
 }

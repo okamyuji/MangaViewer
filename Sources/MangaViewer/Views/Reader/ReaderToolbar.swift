@@ -97,6 +97,7 @@ struct ReaderToolbar: View {
                     step: 1
                 )
                 .frame(width: 150)
+                .disabled(viewModel.totalPages <= 1)
 
                 Text("\(viewModel.currentPage + 1) / \(viewModel.totalPages)")
                     .monospacedDigit()
@@ -131,6 +132,7 @@ struct ReaderToolbar: View {
                     step: 1
                 )
                 .frame(width: 150)
+                .disabled(viewModel.totalPages <= 1)
 
                 Button {
                     viewModel.nextPage()

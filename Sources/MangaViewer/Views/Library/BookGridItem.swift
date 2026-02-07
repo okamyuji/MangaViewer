@@ -3,6 +3,7 @@ import SwiftUI
 struct BookGridItem: View {
     let book: Book
     let onOpen: () -> Void
+    var onDelete: (() -> Void)?
 
     var body: some View {
         VStack(spacing: 8) {
@@ -52,7 +53,7 @@ struct BookGridItem: View {
             Divider()
 
             Button("Delete", role: .destructive) {
-                // Handle deletion through parent view
+                onDelete?()
             }
         }
     }

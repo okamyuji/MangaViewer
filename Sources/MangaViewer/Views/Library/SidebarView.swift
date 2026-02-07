@@ -182,7 +182,7 @@ struct SidebarView: View {
             guard response == .OK else { return }
 
             Task { @MainActor in
-                let viewModel = LibraryViewModel(modelContext: modelContext)
+                let viewModel = LibraryViewModel(modelContext: modelContext, startWatching: false)
                 for url in panel.urls {
                     await viewModel.addFolder(url)
                 }
