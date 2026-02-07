@@ -84,11 +84,7 @@ struct ReaderView: View {
     }
 
     private var hasVisibleImage: Bool {
-        if viewModel.displayMode == .single {
-            return viewModel.currentImage != nil
-        } else {
-            return viewModel.spreadImages.left != nil || viewModel.spreadImages.right != nil
-        }
+        viewModel.spreadImages.left != nil || viewModel.spreadImages.right != nil
     }
 
     @ViewBuilder
@@ -112,20 +108,6 @@ struct ReaderView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            pageContent
-        }
-    }
-
-    @ViewBuilder
-    private var pageContent: some View {
-        switch viewModel.displayMode {
-        case .single:
-            PageView(
-                image: viewModel.currentImage,
-                zoomMode: viewModel.zoomMode,
-                zoomScale: $viewModel.zoomScale
-            )
-        case .spread:
             SpreadView(
                 leftImage: viewModel.spreadImages.left,
                 rightImage: viewModel.spreadImages.right,
@@ -142,8 +124,6 @@ struct ReaderView: View {
     private static let keyCodeSpace: UInt16 = 49
     private static let keyCodeEscape: UInt16 = 53
     private static let keyCodeF: UInt16 = 3
-    private static let keyCode1: UInt16 = 18
-    private static let keyCode2: UInt16 = 19
     private static let keyCodeB: UInt16 = 11
     private static let keyCode0: UInt16 = 29
     private static let keyCodeEqual: UInt16 = 24
@@ -173,14 +153,6 @@ struct ReaderView: View {
 
         case Self.keyCodeF:
             viewModel.toggleFullScreen()
-            return true
-
-        case Self.keyCode1:
-            viewModel.setDisplayMode(.single)
-            return true
-
-        case Self.keyCode2:
-            viewModel.setDisplayMode(.spread)
             return true
 
         case Self.keyCodeB:

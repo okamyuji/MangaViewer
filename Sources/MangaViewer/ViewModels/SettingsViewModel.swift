@@ -10,10 +10,6 @@ final class SettingsViewModel {
     private var storedReadingDirection: String = ReadingDirection.rightToLeft.rawValue
 
     @ObservationIgnored
-    @AppStorage("defaultDisplayMode") private var storedDisplayMode: String = DisplayMode.spread
-        .rawValue
-
-    @ObservationIgnored
     @AppStorage("defaultZoomMode") private var storedZoomMode: String = ZoomMode.fitPage.rawValue
 
     @ObservationIgnored
@@ -22,11 +18,6 @@ final class SettingsViewModel {
     var readingDirection: ReadingDirection {
         get { ReadingDirection(rawValue: storedReadingDirection) ?? .rightToLeft }
         set { storedReadingDirection = newValue.rawValue }
-    }
-
-    var displayMode: DisplayMode {
-        get { DisplayMode(rawValue: storedDisplayMode) ?? .spread }
-        set { storedDisplayMode = newValue.rawValue }
     }
 
     var zoomMode: ZoomMode {

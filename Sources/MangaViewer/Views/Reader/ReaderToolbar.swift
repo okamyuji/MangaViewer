@@ -55,7 +55,7 @@ struct ReaderToolbar: View {
             Divider()
                 .frame(height: 20)
 
-            displayModeControls
+            readingDirectionMenu
 
             Divider()
                 .frame(height: 20)
@@ -142,32 +142,17 @@ struct ReaderToolbar: View {
         }
     }
 
-    private var displayModeControls: some View {
-        HStack(spacing: 4) {
-            ForEach(DisplayMode.allCases) { mode in
+    private var readingDirectionMenu: some View {
+        Menu {
+            ForEach(ReadingDirection.allCases) { direction in
                 Button {
-                    viewModel.setDisplayMode(mode)
+                    viewModel.setReadingDirection(direction)
                 } label: {
-                    Image(systemName: mode.icon)
+                    Label(direction.label, systemImage: direction.icon)
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(viewModel.displayMode == mode ? .primary : .secondary)
             }
-
-            Divider()
-                .frame(height: 16)
-
-            Menu {
-                ForEach(ReadingDirection.allCases) { direction in
-                    Button {
-                        viewModel.setReadingDirection(direction)
-                    } label: {
-                        Label(direction.label, systemImage: direction.icon)
-                    }
-                }
-            } label: {
-                Image(systemName: viewModel.readingDirection.icon)
-            }
+        } label: {
+            Image(systemName: viewModel.readingDirection.icon)
         }
     }
 

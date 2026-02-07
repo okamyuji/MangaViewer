@@ -13,14 +13,12 @@ final class ReaderViewModel {
     var currentBook: Book?
     var currentPage: Int = 0
     var totalPages: Int = 0
-    var displayMode: DisplayMode = .spread
     var readingDirection: ReadingDirection = .rightToLeft
     var zoomMode: ZoomMode = .fitPage
     var zoomScale: CGFloat = 1.0
     var filterSettings: ImageFilterSettings = .default
     var isFullScreen: Bool = false
 
-    var currentImage: NSImage?
     var spreadImages: (left: NSImage?, right: NSImage?) = (nil, nil)
     var isLoading: Bool = false
     var errorMessage: String?
@@ -112,7 +110,6 @@ final class ReaderViewModel {
         provider?.close()
         provider = nil
         currentBook = nil
-        currentImage = nil
         spreadImages = (nil, nil)
         imageCache.clear()
 
@@ -123,7 +120,7 @@ final class ReaderViewModel {
     }
 
     private var currentStep: Int {
-        if displayMode == .spread, !isCurrentPageWide {
+        if !isCurrentPageWide {
             return 2
         }
         return 1
@@ -153,30 +150,6 @@ final class ReaderViewModel {
         }
     }
 
-    func setDisplayMode(_ mode: DisplayMode) {
-        guard mode != displayMode else { return }
-
-        // Synchronously transfer images from cache to prevent flicker
-        // between displayMode change and async Task execution
-        switch mode {
-        case .single:
-            if let cached = imageCache.image(for: currentPage) {
-                currentImage = applyFilters(to: cached)
-            }
-            spreadImages = (nil, nil)
-        case .spread:
-            currentImage = nil
-            setSpreadImagesFromCache()
-        }
-
-        displayMode = mode
-        scheduleLoadPage()
-    }
-
-    func toggleDisplayMode() {
-        setDisplayMode(displayMode == .single ? .spread : .single)
-    }
-
     func setReadingDirection(_ direction: ReadingDirection) {
         guard direction != readingDirection else { return }
         readingDirection = direction
@@ -185,30 +158,6 @@ final class ReaderViewModel {
 
     func applyCurrentFilters() {
         scheduleLoadPage()
-    }
-
-    private func setSpreadImagesFromCache() {
-        guard let primary = imageCache.image(for: currentPage) else { return }
-
-        if isLandscapeImage(primary) {
-            isCurrentPageWide = true
-            spreadImages = (applyFilters(to: primary), nil)
-            return
-        }
-
-        isCurrentPageWide = false
-        let filteredPrimary = applyFilters(to: primary)
-        let secondaryIndex = currentPage + 1
-
-        let secondary = secondaryIndex < totalPages
-            ? imageCache.image(for: secondaryIndex) : nil
-        let filteredSecondary = secondary.map { applyFilters(to: $0) }
-
-        if readingDirection == .rightToLeft {
-            spreadImages = (filteredSecondary, filteredPrimary)
-        } else {
-            spreadImages = (filteredPrimary, filteredSecondary)
-        }
     }
 
     private func scheduleLoadPage() {
@@ -291,11 +240,7 @@ final class ReaderViewModel {
 
         isLoading = true
 
-        if displayMode == .spread {
-            await loadSpreadImages()
-        } else {
-            await loadSingleImage()
-        }
+        await loadSpreadImages()
 
         guard !Task.isCancelled else { return }
 
@@ -303,19 +248,6 @@ final class ReaderViewModel {
         saveProgress()
 
         isLoading = false
-    }
-
-    private func loadSingleImage() async {
-        guard provider != nil else { return }
-
-        spreadImages = (nil, nil)
-
-        if let image = await loadImageForPage(currentPage) {
-            guard !Task.isCancelled else { return }
-            currentImage = applyFilters(to: image)
-        } else {
-            currentImage = nil
-        }
     }
 
     private func isLandscapeImage(_ image: NSImage) -> Bool {
@@ -340,8 +272,6 @@ final class ReaderViewModel {
 
     private func loadSpreadImages() async {
         guard provider != nil else { return }
-
-        currentImage = nil
 
         // Load the primary page first to check if it's a wide (spread scan) image
         let primaryImage = await loadImageForPage(currentPage)

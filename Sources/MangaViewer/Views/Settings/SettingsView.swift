@@ -45,12 +45,6 @@ struct SettingsView: View {
                     }
                 }
 
-                Picker("Display Mode", selection: $viewModel.displayMode) {
-                    ForEach(DisplayMode.allCases) { mode in
-                        Text(mode.label).tag(mode)
-                    }
-                }
-
                 Picker("Zoom Mode", selection: $viewModel.zoomMode) {
                     ForEach(ZoomMode.allCases.filter { $0 != .custom }) { mode in
                         Text(mode.label).tag(mode)
