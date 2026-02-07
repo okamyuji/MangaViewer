@@ -1,0 +1,3 @@
+app_identifier("work.okamyuji.mangaviewer")
+apple_id("okamyuji@gmail.com")
+# team_id("")  # Your Apple Developer Team ID - set before first release

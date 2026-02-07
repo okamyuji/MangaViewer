@@ -3,8 +3,7 @@
 .swiftpm/
 Package.resolved
 
-# Xcode
-*.xcodeproj/
+# Xcode (user-specific data only)
 *.xcworkspace/
 xcuserdata/
 *.xcuserstate
@@ -63,3 +62,18 @@ coverage/
 # Temporary files
 *.tmp
 *.temp
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/
+fastlane/test_output/
+
+# Ruby / Bundler
+vendor/bundle/
+Gemfile.lock
+
+.playwright-mcp/
+
+# Screenshots (App Store用、ローカルで生成)
+screenshots/
