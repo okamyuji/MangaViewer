@@ -14,7 +14,7 @@ platform :mac do
   desc "Run linter and formatter checks"
   lane :lint do
     sh("cd .. && swiftlint lint --quiet")
-    sh("cd .. && swiftformat . --dryrun")
+    sh("cd .. && swiftformat --lint .")
   end
 
   desc "Build release"

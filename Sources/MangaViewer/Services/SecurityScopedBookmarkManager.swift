@@ -78,9 +78,7 @@ actor SecurityScopedBookmarkManager {
     @discardableResult
     func startAccessing(path: String) -> (url: URL, oldPath: String?)? {
         let bookmarks = loadAllBookmarkData()
-        guard let data = bookmarks[path] else { return nil }
-
-        guard let resolved = resolveAndAccess(bookmarkData: data) else {
+        guard let data = bookmarks[path], let resolved = resolveAndAccess(bookmarkData: data) else {
             return nil
         }
 
