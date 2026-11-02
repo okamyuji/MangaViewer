@@ -129,8 +129,12 @@ struct ContentView: View {
 
             // Back on MainActor - check cancellation and stale request
             guard !Task.isCancelled, openRequestID == requestID else {
-                if case let .success((provider, _)) = result { provider.close() }
-                if accessing { url.stopAccessingSecurityScopedResource() }
+                if case let .success((provider, _)) = result {
+                    provider.close()
+                }
+                if accessing {
+                    url.stopAccessingSecurityScopedResource()
+                }
                 return
             }
 
@@ -139,10 +143,14 @@ struct ContentView: View {
                 directOpenProvider = provider
                 directOpenTitle = title
                 directOpenThumbnail = thumbnail
-                if accessing { directOpenAccessingURL = url }
+                if accessing {
+                    directOpenAccessingURL = url
+                }
                 isLoading = false
             case let .failure(error):
-                if accessing { url.stopAccessingSecurityScopedResource() }
+                if accessing {
+                    url.stopAccessingSecurityScopedResource()
+                }
                 isLoading = false
                 loadingError = error.localizedDescription
             }

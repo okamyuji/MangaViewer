@@ -19,9 +19,7 @@ enum ImageFilterApplier {
     private static let context = CIContext()
 
     static func apply(_ settings: ImageFilterSettings, to image: NSImage) -> NSImage {
-        guard !settings.isDefault else { return image }
-
-        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+        guard !settings.isDefault, let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
             return image
         }
 
