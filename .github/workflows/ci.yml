@@ -1,0 +1,28 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  # fastlane の ci レーン（xcodegen、swiftlint、swiftformat、xcodebuild test、Release build）を動かす
+  fastlane:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "4.0"
+          bundler-cache: true
+      - run: brew install xcodegen swiftlint swiftformat
+      # Local.xcconfig は手元の署名チームを書く gitignore 対象のファイル。CI では署名しない
+      - run: printf 'DEVELOPMENT_TEAM =\n' > Local.xcconfig
+      - run: bundle exec fastlane ci
+
+  security:
+    uses: okamyuji/reusable-workflows/.github/workflows/security-scan.yml@v1
