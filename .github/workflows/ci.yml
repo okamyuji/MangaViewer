@@ -8,6 +8,10 @@ permissions:
   contents: read
 
 jobs:
+  # rails-ci with security-scan: false (or no rails-ci) does not run bundler-audit
+  audit:
+    uses: okamyuji/reusable-workflows/.github/workflows/ruby-audit.yml@v1
+
   # fastlane の ci レーン（xcodegen、swiftlint、swiftformat、xcodebuild test、Release build）を動かす
   fastlane:
     runs-on: macos-latest
