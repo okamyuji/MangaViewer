@@ -20,6 +20,8 @@ jobs:
           ruby-version: "4.0"
       # bundler-cache は gem を作業ツリーの vendor/bundle に入れ、swiftlint と swiftformat が fastlane 同梱の Swift まで検査してしまう
       - run: bundle install
+        env:
+          BUNDLE_FROZEN: "true"
       - run: brew install xcodegen swiftlint swiftformat
       # Local.xcconfig は手元の署名チームを書く gitignore 対象のファイル。CI では署名しない
       - run: printf 'DEVELOPMENT_TEAM =\n' > Local.xcconfig
