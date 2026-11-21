@@ -1,4 +1,3 @@
-import AppKit
 import Foundation
 
 final class FolderLoader: PageProvider, Sendable {
@@ -49,14 +48,14 @@ final class FolderLoader: PageProvider, Sendable {
         return results
     }
 
-    func image(at index: Int) async throws -> NSImage {
+    func image(at index: Int) async throws -> PlatformImage {
         guard index >= 0 && index < imageFiles.count else {
             throw MangaViewerError.pageOutOfRange(index, imageFiles.count)
         }
 
         let fileURL = imageFiles[index]
 
-        guard let image = NSImage(contentsOf: fileURL) else {
+        guard let data = try? Data(contentsOf: fileURL), let image = PlatformImage(imageData: data) else {
             throw MangaViewerError.invalidImageData
         }
 

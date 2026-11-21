@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ZoomableImageView: View {
-    let image: NSImage
+    let image: PlatformImage
     let zoomMode: ZoomMode
     @Binding var zoomScale: CGFloat
 
@@ -12,9 +12,9 @@ struct ZoomableImageView: View {
         GeometryReader { geometry in
             let imageSize = calculateImageSize(for: geometry.size)
 
-            Image(nsImage: image)
+            Image(platformImage: image)
                 .resizable()
-                .aspectRatio(contentMode: .fit)
+                .scaledToFit()
                 .frame(width: imageSize.width * zoomScale, height: imageSize.height * zoomScale)
                 .offset(offset)
                 .frame(width: geometry.size.width, height: geometry.size.height)
@@ -29,6 +29,10 @@ struct ZoomableImageView: View {
                 .simultaneousGesture(
                     DragGesture()
                         .onChanged { value in
+                            #if os(iOS)
+                                // At fit size a horizontal drag is a page-turn swipe, not a pan
+                                guard zoomScale > 1 else { return }
+                            #endif
                             offset = CGSize(
                                 width: lastOffset.width + value.translation.width,
                                 height: lastOffset.height + value.translation.height
@@ -78,12 +82,4 @@ struct ZoomableImageView: View {
             return CGSize(width: imageWidth, height: imageHeight)
         }
     }
-}
-
-#Preview {
-    ZoomableImageView(
-        image: NSImage(systemSymbolName: "photo", accessibilityDescription: nil)!,
-        zoomMode: .fitPage,
-        zoomScale: .constant(1.0)
-    )
 }

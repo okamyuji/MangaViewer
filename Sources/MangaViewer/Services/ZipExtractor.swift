@@ -1,4 +1,3 @@
-import AppKit
 import Foundation
 import ZIPFoundation
 
@@ -29,7 +28,7 @@ final class ZipExtractor: PageProvider, @unchecked Sendable {
         pageCount = imageEntries.count
     }
 
-    func image(at index: Int) async throws -> NSImage {
+    func image(at index: Int) async throws -> PlatformImage {
         guard index >= 0 && index < imageEntries.count else {
             throw MangaViewerError.pageOutOfRange(index, imageEntries.count)
         }
@@ -37,7 +36,7 @@ final class ZipExtractor: PageProvider, @unchecked Sendable {
         let entry = imageEntries[index]
         let imageData = try extractEntry(entry)
 
-        guard let image = NSImage(data: imageData) else {
+        guard let image = PlatformImage(imageData: imageData) else {
             throw MangaViewerError.invalidImageData
         }
 

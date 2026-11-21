@@ -1,4 +1,3 @@
-import AppKit
 import Foundation
 
 actor ImageCacheActor {
@@ -41,7 +40,7 @@ actor ImageCacheActor {
 }
 
 final class ImageCache: @unchecked Sendable {
-    private let cache = NSCache<NSNumber, NSImage>()
+    private let cache = NSCache<NSNumber, PlatformImage>()
     private let prefetchCount = 3
     private let actor = ImageCacheActor()
 
@@ -50,11 +49,11 @@ final class ImageCache: @unchecked Sendable {
         cache.totalCostLimit = 500 * 1024 * 1024 // 500MB
     }
 
-    func image(for index: Int) -> NSImage? {
+    func image(for index: Int) -> PlatformImage? {
         cache.object(forKey: NSNumber(value: index))
     }
 
-    func set(_ image: NSImage, for index: Int) {
+    func set(_ image: PlatformImage, for index: Int) {
         let cost = Int(image.size.width * image.size.height * 4)
         cache.setObject(image, forKey: NSNumber(value: index), cost: cost)
     }

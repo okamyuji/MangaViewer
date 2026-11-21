@@ -182,12 +182,8 @@ struct ImageFilterSettingsTests {
 @Suite("ImageFilterApplier Tests")
 @MainActor
 struct ImageFilterApplierTests {
-    private func createTestImage() -> NSImage {
-        NSImage(size: NSSize(width: 100, height: 100), flipped: false) { rect in
-            NSColor.red.setFill()
-            NSBezierPath.fill(rect)
-            return true
-        }
+    private func createTestImage() -> PlatformImage {
+        TestImages.solid(width: 100, height: 100)
     }
 
     @Test("Default settings return original image unchanged")
@@ -243,7 +239,7 @@ struct ReaderViewModelTests {
     @Test("setReadingDirection changes direction")
     @MainActor
     func setReadingDirection() {
-        let vm = ReaderViewModel()
+        let vm = makeIsolatedReader()
         #expect(vm.readingDirection == .rightToLeft)
 
         vm.setReadingDirection(.leftToRight)
@@ -256,7 +252,7 @@ struct ReaderViewModelTests {
     @Test("setReadingDirection does not change if same direction")
     @MainActor
     func setReadingDirectionSame() {
-        let vm = ReaderViewModel()
+        let vm = makeIsolatedReader()
         vm.setReadingDirection(.rightToLeft)
         #expect(vm.readingDirection == .rightToLeft)
     }
@@ -264,21 +260,21 @@ struct ReaderViewModelTests {
     @Test("canBookmark is false when currentBook is nil")
     @MainActor
     func canBookmarkWithoutBook() {
-        let vm = ReaderViewModel()
+        let vm = makeIsolatedReader()
         #expect(vm.canBookmark == false)
     }
 
     @Test("hasBookmarkOnCurrentPage is false when currentBook is nil")
     @MainActor
     func hasBookmarkWithoutBook() {
-        let vm = ReaderViewModel()
+        let vm = makeIsolatedReader()
         #expect(vm.hasBookmarkOnCurrentPage == false)
     }
 
     @Test("addBookmark does nothing when currentBook is nil")
     @MainActor
     func addBookmarkWithoutBook() {
-        let vm = ReaderViewModel()
+        let vm = makeIsolatedReader()
         vm.addBookmark()
         #expect(vm.showBookmarkToast == false)
     }
@@ -286,7 +282,7 @@ struct ReaderViewModelTests {
     @Test("toggleBookmark does nothing when currentBook is nil")
     @MainActor
     func toggleBookmarkWithoutBook() {
-        let vm = ReaderViewModel()
+        let vm = makeIsolatedReader()
         vm.toggleBookmark()
         #expect(vm.showBookmarkToast == false)
     }
@@ -294,14 +290,14 @@ struct ReaderViewModelTests {
     @Test("sortedBookmarks is empty when currentBook is nil")
     @MainActor
     func sortedBookmarksWithoutBook() {
-        let vm = ReaderViewModel()
+        let vm = makeIsolatedReader()
         #expect(vm.sortedBookmarks.isEmpty)
     }
 
     @Test("page navigation respects bounds")
     @MainActor
     func pageNavigationBounds() {
-        let vm = ReaderViewModel()
+        let vm = makeIsolatedReader()
         vm.totalPages = 5
         vm.currentPage = 0
 
@@ -318,7 +314,7 @@ struct ReaderViewModelTests {
     @Test("zoom in and out change scale")
     @MainActor
     func zoomInOut() {
-        let vm = ReaderViewModel()
+        let vm = makeIsolatedReader()
         let initialScale = vm.zoomScale
 
         vm.zoomIn()
@@ -336,7 +332,7 @@ struct ReaderViewModelTests {
     @Test("isCurrentPageWide defaults to false")
     @MainActor
     func isCurrentPageWideDefault() {
-        let vm = ReaderViewModel()
+        let vm = makeIsolatedReader()
         #expect(vm.isCurrentPageWide == false)
     }
 }
@@ -353,6 +349,26 @@ struct ColorExtensionTests {
     func colorFromHexNoHash() {
         let color = Color(hex: "00FF00")
         #expect(color != nil)
+    }
+
+    @Test("toHex round-trips a color created from hex")
+    func toHexRoundTrip() throws {
+        let color = try #require(Color(hex: "#FF8000"))
+        #expect(color.toHex() == "#FF8000")
+    }
+
+    @Test("toHex round-trips every 8-bit channel value")
+    func toHexRoundTripsEveryChannelValue() {
+        for value in 0 ... 255 {
+            let hex = String(format: "#%02X%02X%02X", value, 255 - value, value / 2)
+            #expect(Color(hex: hex)?.toHex() == hex)
+        }
+    }
+
+    @Test("toHex writes black and white with two digits per channel")
+    func toHexExtremes() {
+        #expect(Color(hex: "000000")?.toHex() == "#000000")
+        #expect(Color(hex: "FFFFFF")?.toHex() == "#FFFFFF")
     }
 
     @Test("Color returns nil for invalid hex")

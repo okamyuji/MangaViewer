@@ -1,43 +1,41 @@
-import AppKit
+import CoreGraphics
 import Foundation
+import ImageIO
+import UniformTypeIdentifiers
 
 enum ThumbnailGenerator {
-    static func generate(from provider: PageProvider, size: NSSize = NSSize(width: 200, height: 300)) async -> Data? {
-        guard provider.pageCount > 0 else { return nil }
-
-        do {
-            let image = try await provider.image(at: 0)
-            let thumbnail = resize(image: image, to: size)
-            return thumbnail.tiffRepresentation.flatMap {
-                NSBitmapImageRep(data: $0)?.representation(
-                    using: .jpeg, properties: [.compressionFactor: 0.8]
-                )
-            }
-        } catch {
-            return nil
-        }
+    static func generate(
+        from provider: PageProvider,
+        size: CGSize = CGSize(width: Constants.Thumbnail.width, height: Constants.Thumbnail.height)
+    ) async -> Data? {
+        guard provider.pageCount > 0, let image = try? await provider.image(at: 0) else { return nil }
+        return jpegData(from: image, maxSize: size)
     }
 
-    private static func resize(image: NSImage, to targetSize: NSSize) -> NSImage {
-        let imageSize = image.size
-        let widthRatio = targetSize.width / imageSize.width
-        let heightRatio = targetSize.height / imageSize.height
-        let ratio = min(widthRatio, heightRatio)
+    /// Scales the image to fit `maxSize` (up or down, keeping aspect ratio) and encodes it as JPEG.
+    static func jpegData(from image: PlatformImage, maxSize: CGSize) -> Data? {
+        guard let source = image.cgImageValue, source.width > 0, source.height > 0 else { return nil }
 
-        let newSize = NSSize(
-            width: imageSize.width * ratio,
-            height: imageSize.height * ratio
-        )
+        let ratio = min(maxSize.width / CGFloat(source.width), maxSize.height / CGFloat(source.height))
+        let width = max(1, Int((CGFloat(source.width) * ratio).rounded()))
+        let height = max(1, Int((CGFloat(source.height) * ratio).rounded()))
 
-        return NSImage(size: newSize, flipped: false) { drawRect in
-            NSGraphicsContext.current?.imageInterpolation = .high
-            image.draw(
-                in: drawRect,
-                from: NSRect(origin: .zero, size: imageSize),
-                operation: .copy,
-                fraction: 1.0
-            )
-            return true
-        }
+        guard let context = CGContext(
+            data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+        ) else { return nil }
+        context.interpolationQuality = .high
+        context.draw(source, in: CGRect(x: 0, y: 0, width: width, height: height))
+        guard let scaled = context.makeImage() else { return nil }
+
+        let data = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(
+            data, UTType.jpeg.identifier as CFString, 1, nil
+        ) else { return nil }
+        let options = [kCGImageDestinationLossyCompressionQuality: 0.8] as CFDictionary
+        CGImageDestinationAddImage(destination, scaled, options)
+        guard CGImageDestinationFinalize(destination) else { return nil }
+        return data as Data
     }
 }
