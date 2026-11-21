@@ -81,8 +81,10 @@ final class SettingsViewModel {
         NotificationCenter.default.post(name: .watchedFolderRemoved, object: url)
     }
 
-    func restoreWatchedFolderAccess() async -> [URL] {
+    /// Starts access to every watched folder; `inaccessible` lists those whose bookmark no longer resolves.
+    func restoreWatchedFolderAccess() async -> (urls: [URL], inaccessible: [URL]) {
         var urls: [URL] = []
+        var inaccessible: [URL] = []
         var folders = watchedFolders
         var updated = false
         for (index, folder) in folders.enumerated() {
@@ -94,11 +96,13 @@ final class SettingsViewModel {
                     folders[index] = result.url
                     updated = true
                 }
+            } else {
+                inaccessible.append(folder)
             }
         }
         if updated {
             watchedFolders = folders
         }
-        return urls
+        return (urls, inaccessible)
     }
 }

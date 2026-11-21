@@ -83,13 +83,12 @@ struct ReaderView: View {
                 }
             }
         }
-        .onAppear {
-            Task {
-                if let book {
-                    await viewModel.openBook(book, modelContext: modelContext)
-                } else if let provider, let title = bookTitle {
-                    await viewModel.openProvider(provider, title: title)
-                }
+        // .task is cancelled when the reader disappears, so a slow open does not outlive it
+        .task {
+            if let book {
+                await viewModel.openBook(book, modelContext: modelContext)
+            } else if let provider, let title = bookTitle {
+                await viewModel.openProvider(provider, title: title)
             }
         }
         .onDisappear {

@@ -89,12 +89,22 @@ struct AppStateOpenFileTests {
         #expect(AppState.shared.showError)
     }
 
-    @Test("a missing archive is rejected with an error")
+    @Test("a missing archive is handed to the reader, which reports it when opening")
     func missingArchive() {
         reset()
         defer { reset() }
-        AppState.shared.openFile(URL(fileURLWithPath: "/nonexistent/\(UUID().uuidString).cbz"))
-        #expect(AppState.shared.fileToOpen == nil)
-        #expect(AppState.shared.openError?.hasPrefix("File not found:") == true)
+        // A file-provider item can be absent until the coordinated read in the opener downloads it
+        let url = URL(fileURLWithPath: "/nonexistent/\(UUID().uuidString).cbz")
+        AppState.shared.openFile(url)
+        #expect(AppState.shared.fileToOpen == url)
+        #expect(AppState.shared.showError == false)
+        #expect {
+            try ArchiveService.provider(for: url)
+        } throws: { error in
+            if case MangaViewerError.archiveNotFound = error {
+                return true
+            }
+            return false
+        }
     }
 }

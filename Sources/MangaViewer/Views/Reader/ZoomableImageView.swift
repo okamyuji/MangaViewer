@@ -82,6 +82,9 @@ struct ZoomableImageView: View {
                 .onChange(of: zoomMode) {
                     recenter(imageSize: calculateImageSize(for: geometry.size), containerSize: geometry.size)
                 }
+                .onChange(of: geometry.size) {
+                    recenter(imageSize: calculateImageSize(for: geometry.size), containerSize: geometry.size)
+                }
                 .preference(
                     key: PageOverflowsHorizontallyKey.self,
                     value: ReaderGesture.overflows(displayedSize(imageSize).width, geometry.size.width)

@@ -397,7 +397,12 @@ final class ReaderViewModel {
 
         let renderer = ImageRenderer(content: placeholder)
         renderer.scale = 1
-        return renderer.cgImage.map { PlatformImage.make(cgImage: $0) } ?? PlatformImage()
+        guard let cgImage = renderer.cgImage else {
+            // Without a placeholder image the page would be blank; show the error as text instead
+            errorMessage = "Page \(page + 1): \(error.localizedDescription)"
+            return PlatformImage()
+        }
+        return PlatformImage.make(cgImage: cgImage)
     }
 
     private func applyFilters(to image: PlatformImage) -> PlatformImage {

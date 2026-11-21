@@ -122,6 +122,43 @@ struct LibraryWatchingTests {
         #expect(settings.watchedFolders.isEmpty)
     }
 
+    @Test("a watched folder the app can no longer access is reported instead of skipped silently")
+    func inaccessibleWatchedFolderIsReported() async throws {
+        let context = try makeContext()
+        let settings = SettingsViewModel(store: makeIsolatedSettingsStore())
+        let name = "Gone-\(UUID().uuidString)"
+        settings.watchedFolders = [FileManager.default.temporaryDirectory.appendingPathComponent(name)]
+        let library = LibraryViewModel(modelContext: context, startWatching: false, settings: settings)
+        AppState.shared.openError = nil
+        AppState.shared.showError = false
+        defer {
+            AppState.shared.openError = nil
+            AppState.shared.showError = false
+        }
+
+        await library.rescanWatchedFolders()
+
+        #expect(AppState.shared.showError)
+        #expect(AppState.shared.openError?.contains(name) == true)
+    }
+
+    @Test("a reader whose open was cancelled does not keep the book it finished opening")
+    func cancelledOpenIsDropped() async throws {
+        let context = try makeContext()
+        let folder = try makeFolderWithSampleBook(pages: 3)
+        let book = Book(
+            title: "sample", filePath: folder.appendingPathComponent("sample.cbz").path, type: .cbz, totalPages: 3
+        )
+        context.insert(book)
+        let reader = makeIsolatedReader()
+
+        let open = Task { await reader.openBook(book, modelContext: context) }
+        open.cancel()
+        await open.value
+
+        #expect(reader.totalPages == 0)
+    }
+
     @Test("a watched folder without archives imports nothing")
     func emptyFolderImportsNothing() async throws {
         let context = try makeContext()

@@ -210,7 +210,8 @@ final class LibraryViewModel {
         guard !isRefreshing else { return }
         isRefreshing = true
         defer { isRefreshing = false }
-        let urls = await settingsViewModel.restoreWatchedFolderAccess()
+        let (urls, inaccessible) = await settingsViewModel.restoreWatchedFolderAccess()
+        reportInaccessible(inaccessible)
         for url in urls {
             await scanFolder(url)
             // Balance the startAccessing call; watcher manages its own access per-directory
@@ -219,9 +220,19 @@ final class LibraryViewModel {
     }
 
     private func scanWatchedFolder(path: String) async {
-        guard let access = await SecurityScopedBookmarkManager.shared.startAccessing(path: path) else { return }
+        guard let access = await SecurityScopedBookmarkManager.shared.startAccessing(path: path) else {
+            reportInaccessible([URL(fileURLWithPath: path)])
+            return
+        }
         await scanFolder(access.url)
         await SecurityScopedBookmarkManager.shared.stopAccessing(url: access.url)
+    }
+
+    private func reportInaccessible(_ folders: [URL]) {
+        guard !folders.isEmpty else { return }
+        let names = folders.map(\.lastPathComponent).joined(separator: ", ")
+        AppState.shared.openError = "Cannot access watched folders: \(names). Choose them again in Settings."
+        AppState.shared.showError = true
     }
 }
 
