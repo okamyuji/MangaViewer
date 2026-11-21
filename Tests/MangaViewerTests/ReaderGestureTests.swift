@@ -92,7 +92,12 @@ struct ReaderGestureTests {
             (CGSize(width: 834, height: 1251), CGSize(width: 40, height: -200), CGSize(width: 0, height: -75.5)),
             // after pinching back to fit, a pan left over from the zoom returns to center
             (CGSize(width: 700, height: 1000), CGSize(width: 30, height: 30), CGSize.zero),
-            (CGSize(width: 1200, height: 1251), CGSize(width: 100, height: 10), CGSize(width: 100, height: 10))
+            (CGSize(width: 1200, height: 1251), CGSize(width: 100, height: 10), CGSize(width: 100, height: 10)),
+            // past the positive edges of both axes: 183 right, 75.5 down at most
+            (CGSize(width: 1200, height: 1251), CGSize(width: 500, height: 300), CGSize(width: 183, height: 75.5)),
+            (CGSize(width: 1200, height: 1251), CGSize(width: -500, height: -300), CGSize(width: -183, height: -75.5)),
+            // exactly at the edge stays put
+            (CGSize(width: 1200, height: 1251), CGSize(width: 183, height: -75.5), CGSize(width: 183, height: -75.5))
         ]
     )
     func clampedOffset(contentSize: CGSize, offset: CGSize, expected: CGSize) {
