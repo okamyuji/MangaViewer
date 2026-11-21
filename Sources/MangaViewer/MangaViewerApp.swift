@@ -28,7 +28,7 @@ struct MangaViewerApp: App {
             Tag.self
         ])
         let modelConfiguration = ModelConfiguration(
-            schema: schema, isStoredInMemoryOnly: AppEnvironment.isRunningUnitTests
+            schema: schema, isStoredInMemoryOnly: AppEnvironment.isRunningUnitTests || AppEnvironment.isRunningUITests
         )
 
         do {

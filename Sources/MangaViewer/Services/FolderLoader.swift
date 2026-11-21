@@ -2,12 +2,14 @@ import Foundation
 
 final class FolderLoader: PageProvider, Sendable {
     private let imageFiles: [URL]
+    private let maxPageBytes: Int64
 
     var pageCount: Int {
         imageFiles.count
     }
 
-    init(url: URL) throws {
+    init(url: URL, maxPageBytes: Int64 = Constants.Limits.maxPageBytes) throws {
+        self.maxPageBytes = maxPageBytes
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw MangaViewerError.archiveNotFound
         }
@@ -45,7 +47,7 @@ final class FolderLoader: PageProvider, Sendable {
             return results
         }
 
-        for case let fileURL as URL in enumerator where ImageFileFilter.isImageFile(fileURL) {
+        for case let fileURL as URL in enumerator where ImageFileFilter.isPageFile(fileURL) {
             results.append(fileURL)
         }
 
@@ -53,18 +55,33 @@ final class FolderLoader: PageProvider, Sendable {
     }
 
     func image(at index: Int) async throws -> PlatformImage {
-        guard index >= 0 && index < imageFiles.count else {
+        guard index >= 0, index < imageFiles.count else {
             throw MangaViewerError.pageOutOfRange(index, imageFiles.count)
         }
 
         let fileURL = imageFiles[index]
 
-        guard let data = try? CoordinatedRead.read(fileURL, { try Data(contentsOf: $0) }),
-              let image = PlatformImage(imageData: data)
-        else {
+        let data: Data
+        do {
+            data = try CoordinatedRead.read(fileURL) { readable in
+                // Reading one byte past the limit also catches a file that grew after it was listed
+                let handle = try FileHandle(forReadingFrom: readable)
+                defer { try? handle.close() }
+                let bytes = try handle.read(upToCount: Int(maxPageBytes) + 1) ?? Data()
+                guard Int64(bytes.count) <= maxPageBytes else {
+                    throw MangaViewerError.pageTooLarge
+                }
+                return bytes
+            }
+        } catch let error as MangaViewerError {
+            throw error
+        } catch {
             throw MangaViewerError.invalidImageData
         }
 
+        guard let image = PlatformImage(imageData: data) else {
+            throw MangaViewerError.invalidImageData
+        }
         return image
     }
 

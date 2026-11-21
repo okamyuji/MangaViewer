@@ -46,7 +46,7 @@ final class ReaderViewModel {
     /// Whether the display is showing a single page (wide primary or wide secondary)
     private var displaysSinglePage: Bool = false
     /// Set by the view when the reader area is portrait (iPad held upright)
-    private var prefersSinglePage: Bool = false
+    private(set) var prefersSinglePage: Bool = false
 
     private var provider: PageProvider?
     private let imageCache = ImageCache()

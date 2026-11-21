@@ -63,7 +63,16 @@ enum ReaderGesture {
         max(0.25, min(5.0, base * magnification))
     }
 
-    static func prefersSinglePage(containerSize: CGSize) -> Bool {
-        containerSize.height > containerSize.width
+    /// Near-square readers (a Stage Manager window, or the toolbars toggling) keep the current mode,
+    /// so the layout does not flip between one page and a spread on every small resize.
+    static func prefersSinglePage(containerSize: CGSize, current: Bool) -> Bool {
+        let hysteresis: CGFloat = 1.1
+        if containerSize.height > containerSize.width * hysteresis {
+            return true
+        }
+        if containerSize.width > containerSize.height * hysteresis {
+            return false
+        }
+        return current
     }
 }

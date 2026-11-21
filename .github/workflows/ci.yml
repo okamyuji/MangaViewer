@@ -12,7 +12,7 @@ jobs:
   audit:
     uses: okamyuji/reusable-workflows/.github/workflows/ruby-audit.yml@v1
 
-  # fastlane の ci レーン（xcodegen、swiftlint、swiftformat、macOS と iPad シミュレータの xcodebuild test、Release build）を動かす
+  # fastlane の ci レーン（xcodegen、swiftlint、swiftformat、macOS の単体・UI 試験、iPad シミュレータの単体・UI 試験、macOS と iPad の Release build）を動かす
   fastlane:
     runs-on: macos-latest
     steps:
@@ -29,6 +29,8 @@ jobs:
       - run: brew install xcodegen swiftlint swiftformat
       # Local.xcconfig は手元の署名チームを書く gitignore 対象のファイル。CI では署名しない
       - run: printf 'DEVELOPMENT_TEAM =\n' > Local.xcconfig
+      # macOS UI tests drive the app, which needs automation mode without an authentication prompt
+      - run: sudo automationmodetool enable-automationmode-without-authentication
       - run: bundle exec fastlane ci
 
   security:

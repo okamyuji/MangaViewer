@@ -21,11 +21,13 @@ MangaViewerはmacOS 14以降で動くSwiftUIアプリです。画像の型に`NS
 | ファイル選択 | `NSOpenPanel`と`UIDocumentPickerViewController`を書き分ける、`fileImporter`にまとめる | 両方で`fileImporter`を使う | [fileImporter](https://developer.apple.com/documentation/swiftui/view/fileimporter(ispresented:allowedcontenttypes:allowsmultipleselection:oncompletion:))はmacOS 11とiPadOS 14から使えます |
 | フォルダの読み取り | そのまま列挙する、ファイル調整を通して列挙する | iPadでは`NSFileCoordinator`を通す | Appleの[Providing access to directories](https://developer.apple.com/documentation/uikit/providing-access-to-directories)が、選んだフォルダの読み書きにファイル調整を求めています |
 | 監視フォルダ | iPadでも常時監視する、起動時と引き下げ操作で読み直す | macOSは常時監視、iPadは起動時、フォルダの追加時、引き下げ操作で読み直す。「本を追加」で選んだフォルダも監視フォルダに登録する | iPadで外部のファイルプロバイダの変更通知が届くことは確かめられていません |
-| ページ表示 | 常に見開き、向きで切り替える | iPadでは縦向きで1ページ、横向きで見開き | 縦向きで2ページを並べると1ページの幅が狭くなります |
+| ページ表示 | 常に見開き、向きで切り替える | iPadでは縦向きで1ページ、横向きで見開き。縦横の差が1割以内なら今の表示を保つ | 縦向きで2ページを並べると1ページの幅が狭くなります。正方形に近い窓では、ツールバーの出し入れのたびに表示が切り替わらないようにします |
 | ページ送り | ボタンだけ、タップとスワイプを足す | 左右3分の1のタップ、左右のスワイプ、中央タップでツールバーの出し入れ | 右綴じでは左側のタップと右方向へのスワイプで次のページへ進みます。左綴じでは左右が逆になります。ズーム中のドラッグは画像の移動に使います |
 | キー入力 | iPadで`UIKeyCommand`を使う、`onKeyPress`を使う | iPadは[onKeyPress](https://developer.apple.com/documentation/swiftui/view/onkeypress(_:action:))、macOSは今の`NSEvent`の監視 | `onKeyPress`はiPadOS 17から使えます。macOSの挙動は変えません |
 | 設定画面 | macOSと同じ`Settings`シーン、シート | iPadではサイドバーの歯車ボタンからシートで開く | iPadOSには`Settings`シーンがありません |
-| CI | macOSだけ、iPadシミュレータを足す | fastlaneの`ci` laneにiPadシミュレータのテストを足す | iPad向けのビルドが壊れたことを検出できます |
+| CI | macOSだけ、iPadシミュレータを足す | fastlaneの`ci` laneに、iPadシミュレータのテスト、macOSのUIテスト、iPadのReleaseビルドを足す | iPad向けのビルドと、両方の読書操作が壊れたことを検出できます |
+| 本として取り込むフォルダ | フォルダをすべて本にする、画像を直接入れたフォルダだけを本にする | 画像を直接入れたフォルダだけを本にし、その中のフォルダは同じ本のページとして読む | すべてを本にすると、巻のフォルダと章のフォルダが両方とも本になり、同じページを二重に取り込みます。「シリーズ/巻/画像」と「巻/章/画像」は形が同じで区別できないため、章ごとのフォルダに分けた巻は章ごとの本になります |
+| 巨大な入力 | 上限なし、上限を設ける | 1ページは128MBまで（アーカイブは展開後、フォルダはファイルの大きさ）、画像は5000万画素を超えると縮小する | 「ファイル」から選んだファイルは信頼できません。zipは宣言された大きさを偽れるので、展開しながら量も数えます。zip64の宣言は64ビットの範囲を取るので、比較は符号なしのまま行います |
 
 ## macOS版で合わせて直すもの
 

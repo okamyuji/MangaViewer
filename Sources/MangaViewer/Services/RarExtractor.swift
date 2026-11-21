@@ -5,10 +5,12 @@ final class RarExtractor: PageProvider, @unchecked Sendable {
     private let url: URL
     private let imageEntries: [Entry]
     private let lock = NSLock()
+    private let maxEntryBytes: Int64
     let pageCount: Int
 
-    init(url: URL) throws {
+    init(url: URL, maxEntryBytes: Int64 = Constants.Limits.maxPageBytes) throws {
         self.url = url
+        self.maxEntryBytes = maxEntryBytes
         // Unrar reopens the file by URL for every call, so the listing happens inside the read
         let allEntries = try CoordinatedRead.read(url) { readable in
             guard FileManager.default.fileExists(atPath: readable.path) else {
@@ -49,7 +51,7 @@ final class RarExtractor: PageProvider, @unchecked Sendable {
     }
 
     func image(at index: Int) async throws -> PlatformImage {
-        guard index >= 0 && index < imageEntries.count else {
+        guard index >= 0, index < imageEntries.count else {
             throw MangaViewerError.pageOutOfRange(index, imageEntries.count)
         }
 
@@ -64,6 +66,10 @@ final class RarExtractor: PageProvider, @unchecked Sendable {
     }
 
     private func extractEntry(_ entry: Entry) throws -> Data {
+        // unrar inflates an entry only up to the unpacked size in its header
+        guard entry.uncompressedSize <= UInt64(maxEntryBytes) else {
+            throw MangaViewerError.pageTooLarge
+        }
         lock.lock()
         defer { lock.unlock() }
 

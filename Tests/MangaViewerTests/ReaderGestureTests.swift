@@ -121,12 +121,21 @@ struct ReaderGestureTests {
         #expect(ReaderGesture.pinchScale(base: base, magnification: magnification) == expected)
     }
 
-    @Test("portrait containers show one page, landscape and square show a spread")
-    func singlePageByOrientation() {
-        #expect(ReaderGesture.prefersSinglePage(containerSize: CGSize(width: 834, height: 1194)))
-        #expect(!ReaderGesture.prefersSinglePage(containerSize: CGSize(width: 1194, height: 834)))
-        #expect(!ReaderGesture.prefersSinglePage(containerSize: CGSize(width: 800, height: 800)))
-        #expect(!ReaderGesture.prefersSinglePage(containerSize: .zero))
+    @Test(
+        "clearly portrait shows one page, clearly landscape a spread, and near-square keeps the current mode",
+        arguments: [
+            (CGSize(width: 834, height: 1194), false, true),
+            (CGSize(width: 1194, height: 834), true, false),
+            // within 10% of square, e.g. a Stage Manager window or the toolbars toggling
+            (CGSize(width: 800, height: 860), false, false),
+            (CGSize(width: 860, height: 800), true, true),
+            (CGSize(width: 800, height: 800), true, true),
+            (CGSize(width: 800, height: 800), false, false),
+            (CGSize.zero, true, true)
+        ]
+    )
+    func singlePageByOrientation(size: CGSize, current: Bool, expected: Bool) {
+        #expect(ReaderGesture.prefersSinglePage(containerSize: size, current: current) == expected)
     }
 }
 

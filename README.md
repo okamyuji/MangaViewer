@@ -19,6 +19,10 @@ macOSとiPad向けのSwiftUI製漫画ビューワーアプリケーションで�
 - CBR / RAR
 - 画像フォルダ（jpg, png, gif, webp）
 
+画像を直接入れたフォルダを1冊として扱い、その中のフォルダは同じ本のページとして読みます。画像を直接入れていないフォルダ（シリーズのまとめなど）は、その中から本を探します。
+
+128MBを超えるページは開きません。アーカイブは宣言された大きさで展開の前に止め、大きさを偽ったzipは展開の途中で止めます。フォルダの画像はファイルの大きさで判定します。画素数が5000万を超える画像は縮小して表示します。展開すると巨大になるファイル（zip爆弾）でメモリを使い切らないためです。
+
 ### リーダー機能
 
 - 見開き表示（横長のページと縦向きのiPadは1ページ表示）
@@ -128,6 +132,7 @@ MangaViewer/
 │
 ├── Tests/MangaViewerTests/          # macOSとiPadで共有する単体テスト
 ├── UITests/MangaViewerUITests/      # iPadシミュレータのUIテスト
+├── UITests/MangaViewerUITests-macOS/ # macOSのUIテスト
 ├── docs/adr/                        # 設計判断の記録
 │
 ├── Resources/
@@ -297,13 +302,15 @@ swiftformat . --dryrun
 # 依存関係インストール
 bundle install
 
-# macOSのテスト実行
+# macOSの単体テストとUIテスト
+# UIテストの初回は、自動化モードを認証なしで有効にしておきます
+sudo automationmodetool enable-automationmode-without-authentication
 bundle exec fastlane test
 
 # iPadシミュレータでの単体テストとUIテスト
 bundle exec fastlane ipad_test
 
-# リリースビルド
+# macOSとiPadのリリースビルド
 bundle exec fastlane build
 ```
 
@@ -370,7 +377,7 @@ macOSとiPadの外付けキーボードで同じキーを使います。macOSは
 | 左方向へスワイプ | 前ページ | 次ページ |
 | 中央をタップ | ツールバーの表示切替 | ツールバーの表示切替 |
 
-iPadを縦にすると1ページずつ、横にすると見開きで表示します。ページが画面からはみ出している向き（ズーム中や幅フィットの縦方向）のドラッグは、画像の移動に使います。
+iPadを縦にすると1ページずつ、横にすると見開きで表示します。Stage Managerの窓のように縦横の差が1割以内のときは、今の表示を保ちます。ページが画面からはみ出している向き（ズーム中や幅フィットの縦方向）のドラッグは、画像の移動に使います。
 
 ## 設定項目
 

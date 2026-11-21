@@ -123,21 +123,44 @@ final class LibraryViewModel {
         (try? CoordinatedRead.read(folderURL) { enumerateBookFiles(in: $0, excluding: existingPaths) }) ?? []
     }
 
+    /// A folder is a book only when it holds pages itself, the picked folder included; its subfolders
+    /// belong to that book (FolderLoader reads them), and folders that only group other books are searched instead.
     private nonisolated static func enumerateBookFiles(
         in folderURL: URL, excluding existingPaths: Set<String>
     ) -> [URL] {
-        let fileManager = FileManager.default
+        if containsPages(folderURL) {
+            return existingPaths.contains(folderURL.path) ? [] : [folderURL]
+        }
         guard
-            let enumerator = fileManager.enumerator(
+            let enumerator = FileManager.default.enumerator(
                 at: folderURL,
-                includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey],
+                includingPropertiesForKeys: [.isDirectoryKey],
                 options: [.skipsHiddenFiles]
             )
         else {
             return []
         }
-        return enumerator.compactMap { $0 as? URL }
-            .filter { ArchiveService.bookType(for: $0) != nil && !existingPaths.contains($0.path) }
+        var books: [URL] = []
+        for case let url as URL in enumerator {
+            let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
+            if isDirectory {
+                guard containsPages(url) else { continue }
+                enumerator.skipDescendants()
+            } else if ArchiveService.bookType(for: url) == nil {
+                continue
+            }
+            if !existingPaths.contains(url.path) {
+                books.append(url)
+            }
+        }
+        return books
+    }
+
+    private nonisolated static func containsPages(_ folder: URL) -> Bool {
+        let entries = (try? FileManager.default.contentsOfDirectory(
+            at: folder, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+        )) ?? []
+        return entries.contains { ImageFileFilter.isPageFile($0) }
     }
 
     private func addBook(at url: URL) async {

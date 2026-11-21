@@ -105,6 +105,25 @@ final class ReaderTouchUITests: XCTestCase {
         wait(for: [XCTNSPredicateExpectation(predicate: fullScreen, object: nil)], timeout: 5)
     }
 
+    func testPinchZoomsAndAZoomedDragPansInsteadOfTurningThePage() {
+        let page = app.images["pageImage"].firstMatch
+        XCTAssertTrue(page.waitForExistence(timeout: 5))
+        let fitWidth = page.frame.width
+
+        readerContent.pinch(withScale: 2, velocity: 1)
+        let zoomed = NSPredicate { _, _ in page.frame.width > fitWidth * 1.5 }
+        wait(for: [XCTNSPredicateExpectation(predicate: zoomed, object: nil)], timeout: 5)
+
+        let before = page.frame
+        readerContent.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5))
+            .press(
+                forDuration: 0.1,
+                thenDragTo: readerContent.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.5))
+            )
+        XCTAssertEqual(pageIndicator.label, "1 / 4")
+        XCTAssertGreaterThan(page.frame.minX, before.minX, "a zoomed drag should move the page \(page.frame)")
+    }
+
     func testPortraitShowsOnePagePerStep() {
         tap(atX: 0.15)
         waitForPage("2 / 4")

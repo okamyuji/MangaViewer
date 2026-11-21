@@ -4,6 +4,9 @@ import SwiftUI
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(AppState.self) private var appState
+    #if DEBUG
+        @Environment(LibraryViewModel.self) private var library: LibraryViewModel?
+    #endif
     @Query private var books: [Book]
 
     @State private var selectedBook: Book?
@@ -111,6 +114,16 @@ struct ContentView: View {
 
     #if DEBUG
         private func openSampleBookIfRequested() {
+            if ProcessInfo.processInfo.arguments.contains(SampleBook.libraryLaunchArgument) {
+                let url = FileManager.default.temporaryDirectory.appendingPathComponent("UITestLibrary.cbz")
+                do {
+                    try SampleBook.writeCBZ(to: url, pageCount: 6, widePages: [2])
+                    Task { await library?.addFolder(url) }
+                } catch {
+                    loadingError = error.localizedDescription
+                }
+                return
+            }
             guard ProcessInfo.processInfo.arguments.contains(SampleBook.launchArgument) else { return }
             let url = FileManager.default.temporaryDirectory.appendingPathComponent("UITestSample.cbz")
             do {

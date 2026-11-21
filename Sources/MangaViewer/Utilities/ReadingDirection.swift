@@ -10,15 +10,15 @@ enum ReadingDirection: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .leftToRight: return "Left to Right"
-        case .rightToLeft: return "Right to Left (Manga)"
+        case .leftToRight: "Left to Right"
+        case .rightToLeft: "Right to Left (Manga)"
         }
     }
 
     var icon: String {
         switch self {
-        case .leftToRight: return "arrow.right"
-        case .rightToLeft: return "arrow.left"
+        case .leftToRight: "arrow.right"
+        case .rightToLeft: "arrow.left"
         }
     }
 }

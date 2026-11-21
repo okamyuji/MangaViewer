@@ -126,7 +126,7 @@ struct ReaderView: View {
 
     @ViewBuilder
     private var contentView: some View {
-        if viewModel.isLoading && !hasVisibleImage {
+        if viewModel.isLoading, !hasVisibleImage {
             ProgressView("Loading...")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let errorMessage = viewModel.errorMessage {

@@ -77,15 +77,15 @@ final class ImageCache: @unchecked Sendable {
                     guard let self else { return }
                     do {
                         let image = try await provider.image(at: prefetchIndex)
-                        let gen = await self.actor.currentGeneration()
+                        let gen = await actor.currentGeneration()
                         if !Task.isCancelled, gen == currentGen {
-                            self.set(image, for: prefetchIndex)
+                            set(image, for: prefetchIndex)
                         }
                     } catch {
                         // Silently ignore prefetch errors
                     }
 
-                    await self.actor.removeTask(for: prefetchIndex)
+                    await actor.removeTask(for: prefetchIndex)
                 }
 
                 await actor.setTask(task, for: prefetchIndex)
