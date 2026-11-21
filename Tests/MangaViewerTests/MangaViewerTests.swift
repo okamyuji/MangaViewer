@@ -274,6 +274,22 @@ struct DecompressionBombTests {
         await #expect { _ = try await tooSmall.image(at: 0) } throws: { isPageTooLarge($0) }
     }
 
+    @Test("a symlinked image in a folder is measured at its target, so a link cannot dodge the limit")
+    func folderSymlinkIsMeasuredAtTarget() async throws {
+        let root = temporaryURL("")
+        let folder = root.appendingPathComponent("book")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let target = root.appendingPathComponent("target.png")
+        try Self.page.write(to: target)
+        try FileManager.default.createSymbolicLink(
+            at: folder.appendingPathComponent("001.png"), withDestinationURL: target
+        )
+        let loader = try FolderLoader(url: folder, maxPageBytes: Int64(Self.page.count) - 1)
+
+        await #expect { _ = try await loader.image(at: 0) } throws: { isPageTooLarge($0) }
+    }
+
     @Test("an image with more pixels than the limit is decoded downscaled, keeping its shape")
     func hugeImageIsDownscaled() throws {
         let data = TestImages.pngData(width: 3000, height: 1500)

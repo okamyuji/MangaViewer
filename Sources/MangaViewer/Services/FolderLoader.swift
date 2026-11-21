@@ -64,11 +64,13 @@ final class FolderLoader: PageProvider, Sendable {
         let data: Data
         do {
             data = try CoordinatedRead.read(fileURL) { readable in
-                let size = try readable.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+                // A symlink reports its own size, so measure and read the file it points to
+                let file = readable.resolvingSymlinksInPath()
+                let size = try file.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
                 guard Int64(size) <= maxPageBytes else {
                     throw MangaViewerError.pageTooLarge
                 }
-                return try Data(contentsOf: readable)
+                return try Data(contentsOf: file)
             }
         } catch let error as MangaViewerError {
             throw error
