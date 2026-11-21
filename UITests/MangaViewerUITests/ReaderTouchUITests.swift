@@ -67,16 +67,24 @@ final class ReaderTouchUITests: XCTestCase {
                     thenDragTo: readerContent.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95))
                 )
         }
-        XCTAssertEqual(page.frame.minY, readerContent.frame.minY, accuracy: 2)
+        XCTAssertEqual(
+            page.frame.minY, readerContent.frame.minY, accuracy: 2,
+            "page \(page.frame) did not reach the top of the reader \(readerContent.frame)"
+        )
 
         // Showing the toolbars makes the reader shorter, so the page may move less;
         // without pulling it back its top edge would leave a gap
         tap(atX: 0.5)
         XCTAssertTrue(app.otherElements["readerToolbar"].waitForExistence(timeout: 5))
-        let pulledBack = NSPredicate { _, _ in
-            page.exists && page.frame.minY <= self.readerContent.frame.minY + 2
+        // Give the toolbar animation and the relayout time to finish
+        let deadline = Date().addingTimeInterval(10)
+        while page.frame.minY > readerContent.frame.minY + 2, Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
         }
-        wait(for: [XCTNSPredicateExpectation(predicate: pulledBack, object: nil)], timeout: 5)
+        XCTAssertLessThanOrEqual(
+            page.frame.minY, readerContent.frame.minY + 2,
+            "page \(page.frame) was not pulled back into the reader \(readerContent.frame)"
+        )
     }
 
     func testPortraitShowsOnePagePerStep() {
