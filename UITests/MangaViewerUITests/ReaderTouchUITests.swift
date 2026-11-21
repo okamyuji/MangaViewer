@@ -54,6 +54,31 @@ final class ReaderTouchUITests: XCTestCase {
         XCTAssertTrue(app.otherElements["readerToolbar"].waitForExistence(timeout: 5))
     }
 
+    func testPannedPageIsPulledBackWhenTheReaderGetsShorter() {
+        // Full screen, zoomed in: drag the page down until its top edge reaches the reader's top
+        tap(atX: 0.5)
+        XCTAssertTrue(app.otherElements["readerToolbar"].waitForNonExistence(timeout: 5))
+        readerContent.pinch(withScale: 2, velocity: 1)
+        let page = app.images["pageImage"].firstMatch
+        for _ in 0 ..< 4 {
+            readerContent.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1))
+                .press(
+                    forDuration: 0.1,
+                    thenDragTo: readerContent.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95))
+                )
+        }
+        XCTAssertEqual(page.frame.minY, readerContent.frame.minY, accuracy: 2)
+
+        // Showing the toolbars makes the reader shorter, so the page may move less;
+        // without pulling it back its top edge would leave a gap
+        tap(atX: 0.5)
+        XCTAssertTrue(app.otherElements["readerToolbar"].waitForExistence(timeout: 5))
+        let pulledBack = NSPredicate { _, _ in
+            page.exists && page.frame.minY <= self.readerContent.frame.minY + 2
+        }
+        wait(for: [XCTNSPredicateExpectation(predicate: pulledBack, object: nil)], timeout: 5)
+    }
+
     func testPortraitShowsOnePagePerStep() {
         tap(atX: 0.15)
         waitForPage("2 / 4")

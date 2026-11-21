@@ -21,6 +21,14 @@ final class ReaderViewModel {
 
     var spreadImages: (left: PlatformImage?, right: PlatformImage?) = (nil, nil)
     var isLoading: Bool = false
+    @ObservationIgnored private var openRequestID = 0
+    /// Renders the error placeholder for a page; tests replace it to simulate a failed render.
+    @ObservationIgnored var renderPlaceholder: @MainActor (AnyView) -> CGImage? = { view in
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = 1
+        return renderer.cgImage
+    }
+
     var errorMessage: String?
     var showBookmarkToast: Bool = false
     var bookmarkToastMessage: String = ""
@@ -54,6 +62,8 @@ final class ReaderViewModel {
     }
 
     func openBook(_ book: Book, modelContext: ModelContext) async {
+        openRequestID += 1
+        let requestID = openRequestID
         loadingTask?.cancel()
         loadingTask = nil
 
@@ -63,6 +73,7 @@ final class ReaderViewModel {
         }
 
         await imageCache.clear()
+        guard isCurrentOpen(requestID) else { return }
         self.modelContext = modelContext
         currentBook = book
         currentPage = book.progress?.currentPage ?? 0
@@ -70,14 +81,22 @@ final class ReaderViewModel {
         errorMessage = nil
 
         do {
-            let url = try await resolveBookURL(book)
+            let (url, scopedURL) = try await resolveBookURL(book)
+            guard isCurrentOpen(requestID) else {
+                if let scopedURL {
+                    await SecurityScopedBookmarkManager.shared.stopAccessing(url: scopedURL)
+                }
+                return
+            }
+            accessingURL = scopedURL
 
             // A coordinated read can wait for an iCloud download, so open the book off MainActor
             let opened = try await Task.detached { try ArchiveService.provider(for: url) }.value
-            // The detached open ignores cancellation; drop its result if the reader went away meanwhile
-            if Task.isCancelled {
+            // The detached open ignores cancellation. A newer open or closeBook has already released
+            // this request's access, so a stale result is only closed.
+            guard isCurrentOpen(requestID) else {
                 opened.close()
-                throw CancellationError()
+                return
             }
             provider = opened
             totalPages = provider?.pageCount ?? 0
@@ -95,6 +114,7 @@ final class ReaderViewModel {
 
             await loadCurrentPage()
         } catch {
+            guard isCurrentOpen(requestID) else { return }
             if let url = accessingURL {
                 accessingURL = nil
                 await SecurityScopedBookmarkManager.shared.stopAccessing(url: url)
@@ -105,19 +125,25 @@ final class ReaderViewModel {
         isLoading = false
     }
 
-    private func resolveBookURL(_ book: Book) async throws -> URL {
+    /// False once a newer openBook, closeBook or cancellation has superseded the request.
+    private func isCurrentOpen(_ requestID: Int) -> Bool {
+        requestID == openRequestID && !Task.isCancelled
+    }
+
+    /// Returns the URL to read and, when a bookmark was resolved, the URL whose security scope is
+    /// now held and must be released.
+    private func resolveBookURL(_ book: Book) async throws -> (url: URL, scopedURL: URL?) {
         var url = URL(fileURLWithPath: book.filePath)
+        var scopedURL: URL?
 
         if let bookmarkData = book.bookmarkData {
             guard let resolved = await SecurityScopedBookmarkManager.shared.resolveAndAccess(
                 bookmarkData: bookmarkData
             ) else {
                 logger.warning("Failed to resolve bookmark for \(book.filePath)")
-                errorMessage = "ファイルへのアクセス権が失われました。再度ファイルをライブラリに追加してください。"
-                isLoading = false
                 throw MangaViewerError.archiveNotFound
             }
-            accessingURL = resolved.url
+            scopedURL = resolved.url
             url = resolved.url
             if resolved.isStale {
                 book.bookmarkData = resolved.bookmarkData
@@ -137,7 +163,7 @@ final class ReaderViewModel {
             }
         }
 
-        return url
+        return (url, scopedURL)
     }
 
     func openProvider(_ pageProvider: PageProvider, title _: String) async {
@@ -153,6 +179,7 @@ final class ReaderViewModel {
     }
 
     func closeBook() {
+        openRequestID += 1
         loadingTask?.cancel()
         loadingTask = nil
         toastTask?.cancel()
@@ -395,9 +422,7 @@ final class ReaderViewModel {
         .frame(width: 800, height: 1200)
         .background(Color.readerBackground)
 
-        let renderer = ImageRenderer(content: placeholder)
-        renderer.scale = 1
-        guard let cgImage = renderer.cgImage else {
+        guard let cgImage = renderPlaceholder(AnyView(placeholder)) else {
             // Without a placeholder image the page would be blank; show the error as text instead
             errorMessage = "Page \(page + 1): \(error.localizedDescription)"
             return PlatformImage()

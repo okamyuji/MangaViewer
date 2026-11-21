@@ -28,6 +28,16 @@ final class StubPageProvider: PageProvider, @unchecked Sendable {
 @Suite("Reader page loading Tests")
 @MainActor
 struct ReaderPageLoadingTests {
+    @Test("a page whose error placeholder cannot be rendered shows the error as text")
+    func unrenderablePlaceholderShowsErrorText() async {
+        let vm = makeIsolatedReader()
+        vm.renderPlaceholder = { _ in nil }
+
+        await vm.openProvider(StubPageProvider(pageCount: 2, failingPages: [0]), title: "Book")
+
+        #expect(vm.errorMessage?.hasPrefix("Page 1:") == true)
+    }
+
     @Test("a page that fails to decode is replaced by an 800x1200 placeholder")
     func failingPageShowsPlaceholder() async {
         let vm = makeIsolatedReader()

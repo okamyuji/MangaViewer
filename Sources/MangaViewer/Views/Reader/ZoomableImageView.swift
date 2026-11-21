@@ -18,6 +18,7 @@ struct ZoomableImageView: View {
             Image(platformImage: image)
                 .resizable()
                 .scaledToFit()
+                .accessibilityIdentifier("pageImage")
                 .frame(width: imageSize.width * zoomScale, height: imageSize.height * zoomScale)
                 .offset(offset)
                 .frame(width: geometry.size.width, height: geometry.size.height)

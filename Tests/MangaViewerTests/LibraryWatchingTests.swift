@@ -164,6 +164,39 @@ struct LibraryWatchingTests {
         #expect(reader.totalPages == 0)
     }
 
+    @Test("a reader reopened before its previous open finished keeps only the latest book")
+    func staleOpenDoesNotOverwriteNewerOpen() async throws {
+        let context = try makeContext()
+        // Listing thousands of files makes the first open finish after the second one
+        let slowFolder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: slowFolder, withIntermediateDirectories: true)
+        for index in 0 ..< 3000 {
+            FileManager.default.createFile(
+                atPath: slowFolder.appendingPathComponent(String(format: "p%04d.png", index)).path, contents: nil
+            )
+        }
+        let slowBook = Book(title: "slow", filePath: slowFolder.path, type: .folder, totalPages: 3000)
+        let fastFolder = try makeFolderWithSampleBook(pages: 3)
+        let fastBook = Book(
+            title: "sample", filePath: fastFolder.appendingPathComponent("sample.cbz").path, type: .cbz, totalPages: 3
+        )
+        context.insert(slowBook)
+        context.insert(fastBook)
+        let reader = makeIsolatedReader()
+
+        let stale = Task { await reader.openBook(slowBook, modelContext: context) }
+        await Task.yield()
+        reader.closeBook()
+        let latest = Task { await reader.openBook(fastBook, modelContext: context) }
+        await stale.value
+        await latest.value
+
+        #expect(reader.totalPages == 3)
+        #expect(reader.currentBook === fastBook)
+        #expect(reader.errorMessage == nil)
+        #expect(reader.isLoading == false)
+    }
+
     @Test("a watched folder without archives imports nothing")
     func emptyFolderImportsNothing() async throws {
         let context = try makeContext()
