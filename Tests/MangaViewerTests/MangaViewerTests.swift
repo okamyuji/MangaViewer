@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import Testing
+import ZIPFoundation
 @testable import MangaViewer
 
 @Suite("ImageFileFilter Tests")
@@ -92,6 +93,26 @@ struct ArchiveServiceTests {
     func bookTypeUnsupported() {
         let url = URL(fileURLWithPath: "/test/document.pdf")
         #expect(ArchiveService.bookType(for: url) == nil)
+    }
+}
+
+@Suite("ZipExtractor Tests")
+struct ZipExtractorTests {
+    @Test("an archive that stores the same page path twice opens instead of crashing")
+    func duplicateEntryPaths() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).cbz")
+        let png = TestImages.pngData(width: 4, height: 6)
+        let archive = try Archive(url: url, accessMode: .create)
+        for _ in 0 ..< 2 {
+            try archive.addEntry(with: "001.png", type: .file, uncompressedSize: Int64(png.count)) { position, size in
+                png.subdata(in: Int(position) ..< Int(position) + size)
+            }
+        }
+
+        let extractor = try ZipExtractor(url: url)
+
+        #expect(extractor.pageCount >= 1)
+        #expect(try await extractor.image(at: 0).pixelSize == CGSize(width: 4, height: 6))
     }
 }
 

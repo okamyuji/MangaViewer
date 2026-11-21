@@ -48,8 +48,14 @@ struct BookmarkOptionsTests {
 
         await SecurityScopedBookmarkManager.shared.saveBookmark(for: folder)
         let after = UserDefaults.standard.data(forKey: "securityScopedBookmarks")
+        let saved = await SecurityScopedBookmarkManager.shared.startAccessing(path: folder.path)
+        if let saved {
+            await SecurityScopedBookmarkManager.shared.stopAccessing(url: saved.url)
+        }
         await SecurityScopedBookmarkManager.shared.removeBookmark(for: folder.path)
 
+        #expect(AppEnvironment.isRunningUnitTests)
+        #expect(saved != nil)
         #expect(after == before)
     }
 }

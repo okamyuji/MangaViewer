@@ -112,7 +112,7 @@ final class LibraryViewModel {
     private nonisolated static func findNewBookFiles(
         in folderURL: URL, excluding existingPaths: Set<String>
     ) -> [URL] {
-        CoordinatedRead.read(folderURL) { enumerateBookFiles(in: $0, excluding: existingPaths) } ?? []
+        (try? CoordinatedRead.read(folderURL) { enumerateBookFiles(in: $0, excluding: existingPaths) }) ?? []
     }
 
     private nonisolated static func enumerateBookFiles(

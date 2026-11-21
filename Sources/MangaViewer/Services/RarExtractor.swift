@@ -3,21 +3,24 @@ import Unrar
 
 final class RarExtractor: PageProvider, @unchecked Sendable {
     private let archive: Archive
+    private let url: URL
     private let imageEntries: [Entry]
     private let lock = NSLock()
     let pageCount: Int
 
     init(url: URL) throws {
-        guard FileManager.default.fileExists(atPath: url.path) else {
-            throw MangaViewerError.archiveNotFound
-        }
-
-        do {
-            archive = try Archive(fileURL: url)
-        } catch {
-            throw MangaViewerError.extractionFailed(
-                "Failed to open RAR archive: \(error.localizedDescription)"
-            )
+        self.url = url
+        archive = try CoordinatedRead.read(url) { readable in
+            guard FileManager.default.fileExists(atPath: readable.path) else {
+                throw MangaViewerError.archiveNotFound
+            }
+            do {
+                return try Archive(fileURL: readable)
+            } catch {
+                throw MangaViewerError.extractionFailed(
+                    "Failed to open RAR archive: \(error.localizedDescription)"
+                )
+            }
         }
 
         do {
@@ -27,7 +30,10 @@ final class RarExtractor: PageProvider, @unchecked Sendable {
             }
 
             let sortedNames = ImageFileFilter.sortedNaturally(imageOnlyEntries.map(\.fileName))
-            let entryMap = Dictionary(uniqueKeysWithValues: imageOnlyEntries.map { ($0.fileName, $0) })
+            // A malformed archive can store one name twice; keep the first instead of trapping
+            let entryMap = Dictionary(
+                imageOnlyEntries.map { ($0.fileName, $0) }, uniquingKeysWith: { first, _ in first }
+            )
             imageEntries = sortedNames.compactMap { entryMap[$0] }
             pageCount = imageEntries.count
 
@@ -63,7 +69,8 @@ final class RarExtractor: PageProvider, @unchecked Sendable {
         defer { lock.unlock() }
 
         do {
-            return try archive.extract(entry)
+            // Unrar reopens the file for every extraction, so each one is a coordinated read
+            return try CoordinatedRead.read(url) { _ in try archive.extract(entry) }
         } catch {
             throw MangaViewerError.extractionFailed("Failed to extract: \(error.localizedDescription)")
         }
