@@ -29,10 +29,20 @@ targets:
     configFiles:
       Debug: Local.xcconfig
       Release: Local.xcconfig
+    postBuildScripts:
+      # Declaring the processed Info.plist as input orders this after Xcode writes it, and code
+      # signing comes after every phase, so the stamped file is the one that gets signed
+      - name: Stamp release version
+        script: sh "${SRCROOT}/scripts/stamp-version.sh" "${TARGET_BUILD_DIR}/${INFOPLIST_PATH}" "${SRCROOT}"
+        inputFiles:
+          - $(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)
+        basedOnDependencyAnalysis: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: work.okamyuji.mangaviewer
         INFOPLIST_FILE: Info.plist
+        MARKETING_VERSION: "0.0.0"
+        CURRENT_PROJECT_VERSION: "0"
         CODE_SIGN_ENTITLEMENTS: MangaViewer.entitlements
         SWIFT_STRICT_CONCURRENCY: complete
         ENABLE_UPCOMING_FEATURE_STRICT_CONCURRENCY: true
@@ -86,6 +96,14 @@ targets:
     configFiles:
       Debug: Local.xcconfig
       Release: Local.xcconfig
+    postBuildScripts:
+      # Declaring the processed Info.plist as input orders this after Xcode writes it, and code
+      # signing comes after every phase, so the stamped file is the one that gets signed
+      - name: Stamp release version
+        script: sh "${SRCROOT}/scripts/stamp-version.sh" "${TARGET_BUILD_DIR}/${INFOPLIST_PATH}" "${SRCROOT}"
+        inputFiles:
+          - $(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)
+        basedOnDependencyAnalysis: false
     settings:
       base:
         # Same module name as the macOS app so the shared tests can `@testable import MangaViewer`
@@ -93,6 +111,8 @@ targets:
         PRODUCT_MODULE_NAME: MangaViewer
         PRODUCT_BUNDLE_IDENTIFIER: work.okamyuji.mangaviewer
         INFOPLIST_FILE: Info-iPad.plist
+        MARKETING_VERSION: "0.0.0"
+        CURRENT_PROJECT_VERSION: "0"
         TARGETED_DEVICE_FAMILY: "2"
         IPHONEOS_DEPLOYMENT_TARGET: "17.0"
         SWIFT_STRICT_CONCURRENCY: complete

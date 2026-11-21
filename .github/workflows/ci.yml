@@ -19,6 +19,8 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+          # Full history and tags, so scripts/stamp-version.sh stamps the release tag and commit count
+          fetch-depth: 0
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: "4.0"
@@ -35,3 +37,12 @@ jobs:
 
   security:
     uses: okamyuji/reusable-workflows/.github/workflows/security-scan.yml@v1
+
+  # A release is a push to main whose CI passes: tag it vX.Y.Z from the Conventional Commit types since the last tag
+  release:
+    # The called workflow checks this too; checking here keeps PR runs from starting a job with write access
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [audit, fastlane, security]
+    permissions:
+      contents: write
+    uses: okamyuji/reusable-workflows/.github/workflows/semver-tag.yml@v1
