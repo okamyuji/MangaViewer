@@ -118,6 +118,75 @@ struct ZipExtractorTests {
     }
 }
 
+@Suite("Decompression bomb Tests")
+struct DecompressionBombTests {
+    private static let limit: Int64 = 1024 * 1024
+
+    /// A zip whose single page inflates to 4 MB of zeros from a few kilobytes.
+    private func makeBomb() throws -> URL {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).cbz")
+        let size = 4 * 1024 * 1024
+        let archive = try Archive(url: url, accessMode: .create)
+        try archive.addEntry(
+            with: "001.png", type: .file, uncompressedSize: Int64(size), compressionMethod: .deflate
+        ) { _, chunk in
+            Data(count: chunk)
+        }
+        return url
+    }
+
+    private func isPageTooLarge(_ error: any Error) -> Bool {
+        if case MangaViewerError.pageTooLarge = error {
+            return true
+        }
+        return false
+    }
+
+    @Test("a zip page that declares more than the limit is refused before it is inflated")
+    func declaredSizeOverLimit() async throws {
+        let url = try makeBomb()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let extractor = try ZipExtractor(url: url, maxEntryBytes: Self.limit)
+
+        await #expect { _ = try await extractor.image(at: 0) } throws: { isPageTooLarge($0) }
+    }
+
+    @Test("a zip page that lies about its size is stopped once it inflates past the limit")
+    func understatedSizeStopsWhileInflating() async throws {
+        let url = try makeBomb()
+        defer { try? FileManager.default.removeItem(at: url) }
+        var bytes = try Data(contentsOf: url)
+        // Rewrite the uncompressed size in the local and central headers to 100 bytes
+        func patch(signature: [UInt8], sizeOffset: Int) {
+            guard let range = bytes.firstRange(of: Data(signature)) else { return }
+            let at = range.lowerBound + sizeOffset
+            bytes.replaceSubrange(at ..< at + 4, with: [100, 0, 0, 0])
+        }
+        patch(signature: [0x50, 0x4B, 0x03, 0x04], sizeOffset: 22)
+        patch(signature: [0x50, 0x4B, 0x01, 0x02], sizeOffset: 24)
+        try bytes.write(to: url)
+        let extractor = try ZipExtractor(url: url, maxEntryBytes: Self.limit)
+
+        await #expect { _ = try await extractor.image(at: 0) } throws: { isPageTooLarge($0) }
+    }
+
+    @Test("an image with more pixels than the limit is decoded downscaled, keeping its shape")
+    func hugeImageIsDownscaled() throws {
+        let data = TestImages.pngData(width: 3000, height: 1500)
+
+        let image = try #require(PlatformImage(imageData: data, maxPixels: 1_000_000))
+
+        #expect(image.pixelSize.width * image.pixelSize.height <= 1_000_000)
+        #expect(image.pixelSize.width == image.pixelSize.height * 2)
+    }
+
+    @Test("an image within the limit keeps its full size")
+    func normalImageKeepsSize() throws {
+        let image = try #require(PlatformImage(imageData: TestImages.pngData(width: 300, height: 450), maxPixels: 1_000_000))
+        #expect(image.pixelSize == CGSize(width: 300, height: 450))
+    }
+}
+
 @Suite("MangaViewerError Tests")
 struct MangaViewerErrorTests {
     @Test("Error descriptions are provided")

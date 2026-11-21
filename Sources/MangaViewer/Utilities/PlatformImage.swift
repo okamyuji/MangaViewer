@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import ImageIO
 import SwiftUI
 
 #if os(macOS)
@@ -31,7 +32,17 @@ extension PlatformImage {
         #endif
     }
 
-    convenience init?(imageData: Data) {
+    /// Images with more than `maxPixels` pixels are decoded downscaled, so a small file that
+    /// declares huge dimensions cannot exhaust memory.
+    convenience init?(imageData: Data, maxPixels: Int = Constants.Limits.maxImagePixels) {
+        if let downscaled = Self.downscaledImage(imageData, maxPixels: maxPixels) {
+            #if os(macOS)
+                self.init(cgImage: downscaled, size: CGSize(width: downscaled.width, height: downscaled.height))
+            #else
+                self.init(cgImage: downscaled, scale: 1, orientation: .up)
+            #endif
+            return
+        }
         #if os(macOS)
             self.init(data: imageData)
         #else
@@ -48,6 +59,25 @@ extension PlatformImage {
             guard let upright else { return nil }
             self.init(cgImage: upright, scale: decoded.scale, orientation: .up)
         #endif
+    }
+
+    /// Returns nil when the image is within `maxPixels` (or unreadable) and should be decoded as is.
+    private static func downscaledImage(_ data: Data, maxPixels: Int) -> CGImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let width = properties[kCGImagePropertyPixelWidth] as? Int,
+              let height = properties[kCGImagePropertyPixelHeight] as? Int,
+              width * height > maxPixels
+        else {
+            return nil
+        }
+        let scale = (Double(maxPixels) / Double(width * height)).squareRoot()
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: Int(Double(max(width, height)) * scale)
+        ]
+        return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
     }
 
     var cgImageValue: CGImage? {

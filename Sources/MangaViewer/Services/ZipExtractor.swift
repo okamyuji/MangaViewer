@@ -5,11 +5,15 @@ final class ZipExtractor: PageProvider, @unchecked Sendable {
     private let archive: Archive
     private let imageEntries: [Entry]
     private let lock = NSLock()
+    private let maxEntryBytes: Int64
+    private let url: URL
     let pageCount: Int
 
-    init(url: URL) throws {
-        // Pages are read later through this open archive, so coordinating the open is enough to
-        // bring a file-provider placeholder onto the device.
+    init(url: URL, maxEntryBytes: Int64 = Constants.Limits.maxPageBytes) throws {
+        self.maxEntryBytes = maxEntryBytes
+        self.url = url
+        // Coordinating the open brings a file-provider placeholder onto the device; each page
+        // read below is coordinated as well, so the provider cannot evict the file mid-read.
         let archive = try CoordinatedRead.read(url) { readable in
             guard FileManager.default.fileExists(atPath: readable.path) else {
                 throw MangaViewerError.archiveNotFound
@@ -51,11 +55,22 @@ final class ZipExtractor: PageProvider, @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
 
+        // The declared size can be forged, so the inflated bytes are counted as well
+        guard Int64(entry.uncompressedSize) <= maxEntryBytes else {
+            throw MangaViewerError.pageTooLarge
+        }
         var imageData = Data()
         do {
-            _ = try archive.extract(entry) { data in
-                imageData.append(data)
+            _ = try CoordinatedRead.read(url) { _ in
+                try archive.extract(entry) { data in
+                    imageData.append(data)
+                    if Int64(imageData.count) > maxEntryBytes {
+                        throw MangaViewerError.pageTooLarge
+                    }
+                }
             }
+        } catch let error as MangaViewerError {
+            throw error
         } catch {
             throw MangaViewerError.extractionFailed(error.localizedDescription)
         }

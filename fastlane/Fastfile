@@ -6,9 +6,9 @@ platform :mac do
     sh("cd .. && xcodegen generate")
   end
 
-  desc "Run tests"
+  desc "Run macOS unit and UI tests"
   lane :test do
-    sh("cd .. && xcodebuild -project MangaViewer.xcodeproj -scheme MangaViewerTests -configuration Debug test")
+    sh("cd .. && xcodebuild -project MangaViewer.xcodeproj -scheme MangaViewer -configuration Debug test")
   end
 
   desc "Run unit and UI tests on the first available iPad simulator"
@@ -35,6 +35,9 @@ platform :mac do
   desc "Build release"
   lane :build do
     sh("cd .. && xcodebuild -project MangaViewer.xcodeproj -scheme MangaViewer -configuration Release build")
+    # The iPad app in its Release configuration; a simulator build needs no signing identity
+    sh("cd .. && xcodebuild -project MangaViewer.xcodeproj -scheme MangaViewer-iPad -configuration Release " \
+       "-destination 'generic/platform=iOS Simulator' build")
   end
 
   desc "Archive for App Store"

@@ -8,13 +8,19 @@
     /// Generates a small CBZ for tests and for the `-UITestSampleBook` launch argument.
     enum SampleBook {
         static let launchArgument = "-UITestSampleBook"
+        /// Imports a sample book into the library instead of opening it, with page 3 a spread scan.
+        static let libraryLaunchArgument = "-UITestLibrarySample"
 
-        static func writeCBZ(to url: URL, pageCount: Int, pageWidth: Int = 600, pageHeight: Int = 900) throws {
+        /// Pages in `widePages` are twice as wide as they are tall, like a scanned two-page spread.
+        static func writeCBZ(
+            to url: URL, pageCount: Int, pageWidth: Int = 600, pageHeight: Int = 900, widePages: Set<Int> = []
+        ) throws {
             try? FileManager.default.removeItem(at: url)
             let archive = try Archive(url: url, accessMode: .create)
             for page in 0 ..< pageCount {
                 let shade = CGFloat(page + 1) / CGFloat(pageCount + 1)
-                let png = try pngData(width: pageWidth, height: pageHeight, shade: shade)
+                let width = widePages.contains(page) ? pageHeight * 2 : pageWidth
+                let png = try pngData(width: width, height: pageHeight, shade: shade)
                 try archive.addEntry(
                     with: String(format: "page%03d.png", page + 1),
                     type: .file,

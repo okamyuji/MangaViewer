@@ -37,10 +37,14 @@
                         pageOverflowsHorizontally = overflows
                     }
                     .onAppear {
-                        viewModel.setPrefersSinglePage(ReaderGesture.prefersSinglePage(containerSize: geometry.size))
+                        viewModel.setPrefersSinglePage(ReaderGesture.prefersSinglePage(
+                            containerSize: geometry.size, current: viewModel.prefersSinglePage
+                        ))
                     }
                     .onChange(of: geometry.size) { _, size in
-                        viewModel.setPrefersSinglePage(ReaderGesture.prefersSinglePage(containerSize: size))
+                        viewModel.setPrefersSinglePage(ReaderGesture.prefersSinglePage(
+                            containerSize: size, current: viewModel.prefersSinglePage
+                        ))
                     }
             }
         }

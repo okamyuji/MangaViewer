@@ -59,6 +59,20 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: work.okamyuji.mangaviewer.tests
         GENERATE_INFOPLIST_FILE: true
 
+  MangaViewerUITests-macOS:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - path: UITests/MangaViewerUITests-macOS
+    dependencies:
+      - target: MangaViewer
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: work.okamyuji.mangaviewer.uitests.macos
+        GENERATE_INFOPLIST_FILE: true
+        SWIFT_VERSION: "6"
+        TEST_TARGET_NAME: MangaViewer
+
   MangaViewer-iPad:
     type: application
     platform: iOS
@@ -125,6 +139,15 @@ targets:
         TEST_TARGET_NAME: MangaViewer-iPad
 
 schemes:
+  MangaViewer:
+    build:
+      targets:
+        MangaViewer: all
+    test:
+      config: Debug
+      targets:
+        - MangaViewerTests
+        - MangaViewerUITests-macOS
   MangaViewer-iPad:
     build:
       targets:

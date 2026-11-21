@@ -213,6 +213,54 @@ struct LibraryWatchingTests {
         #expect(reader.errorMessage?.contains("Add it to the library again") == true)
     }
 
+    @Test("only folders that hold pages become books; their parents and subfolders do not")
+    func nestedFoldersImportOnlyPageFolders() async throws {
+        let context = try makeContext()
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let png = TestImages.pngData(width: 6, height: 9)
+        func writePage(_ path: String) throws {
+            let url = root.appendingPathComponent(path)
+            try FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(), withIntermediateDirectories: true
+            )
+            try png.write(to: url)
+        }
+        try writePage("Series/Vol1/001.png")
+        try writePage("Series/Vol2/001.png")
+        try writePage("Vol3/001.png")
+        try writePage("Vol3/Extras/001.png")
+        try FileManager.default.createDirectory(
+            at: root.appendingPathComponent("Loose"), withIntermediateDirectories: true
+        )
+        try SampleBook.writeCBZ(to: root.appendingPathComponent("Loose/book.cbz"), pageCount: 2)
+        let settings = SettingsViewModel(store: makeIsolatedSettingsStore())
+        await settings.addWatchedFolder(root)
+        let library = LibraryViewModel(modelContext: context, startWatching: false, settings: settings)
+
+        await library.rescanWatchedFolders()
+
+        let titles = try context.fetch(FetchDescriptor<Book>()).map(\.title).sorted()
+        #expect(titles == ["Vol1", "Vol2", "Vol3", "book"])
+    }
+
+    @Test("a folder of pages picked with Add Books becomes one book, and a rescan does not import it again")
+    func pickedPageFolderIsOneBook() async throws {
+        let context = try makeContext()
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            .appendingPathComponent("Vol1")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try TestImages.pngData(width: 6, height: 9).write(to: folder.appendingPathComponent("001.png"))
+        let settings = SettingsViewModel(store: makeIsolatedSettingsStore())
+        let library = LibraryViewModel(modelContext: context, startWatching: false, settings: settings)
+
+        await library.addFolder(folder)
+        await library.rescanWatchedFolders()
+
+        let books = try context.fetch(FetchDescriptor<Book>())
+        #expect(books.map(\.title) == ["Vol1"])
+        #expect(books.map(\.type) == [.folder])
+    }
+
     @Test("a watched folder without archives imports nothing")
     func emptyFolderImportsNothing() async throws {
         let context = try makeContext()

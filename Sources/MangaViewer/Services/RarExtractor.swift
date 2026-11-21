@@ -64,6 +64,10 @@ final class RarExtractor: PageProvider, @unchecked Sendable {
     }
 
     private func extractEntry(_ entry: Entry) throws -> Data {
+        // unrar inflates an entry only up to the unpacked size in its header
+        guard entry.uncompressedSize <= UInt64(Constants.Limits.maxPageBytes) else {
+            throw MangaViewerError.pageTooLarge
+        }
         lock.lock()
         defer { lock.unlock() }
 
