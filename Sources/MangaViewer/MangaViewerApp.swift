@@ -3,10 +3,21 @@ import SwiftUI
 
 @main
 struct MangaViewerApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    #if os(macOS)
+        @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    #endif
     @State private var appState = AppState.shared
+    /// One library for every window, so a second window does not rescan and re-import the same folders
+    @State private var library: LibraryViewModel
+    private let sharedModelContainer: ModelContainer
 
-    var sharedModelContainer: ModelContainer = {
+    init() {
+        let container = Self.makeModelContainer()
+        sharedModelContainer = container
+        _library = State(initialValue: LibraryViewModel(modelContext: container.mainContext))
+    }
+
+    private static func makeModelContainer() -> ModelContainer {
         let schema = Schema([
             Book.self,
             ReadingProgress.self,
@@ -20,51 +31,56 @@ struct MangaViewerApp: App {
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
         }
-    }()
+    }
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environment(appState)
+                .environment(library)
                 .onOpenURL { url in
                     appState.openFile(url)
                 }
         }
         .modelContainer(sharedModelContainer)
 
-        Settings {
-            SettingsView()
-        }
-    }
-}
-
-final class AppDelegate: NSObject, NSApplicationDelegate {
-    func application(_: NSApplication, open urls: [URL]) {
-        for url in urls {
-            Task { @MainActor in
-                AppState.shared.openFile(url)
-            }
-        }
-    }
-
-    func applicationDidFinishLaunching(_: Notification) {
-        #if DEBUG
-            // Command line argument file opening only works outside App Sandbox
-            let args = CommandLine.arguments
-            if args.count > 1 {
-                for arg in args.dropFirst() {
-                    let url = URL(fileURLWithPath: arg)
-                    if FileManager.default.fileExists(atPath: url.path) {
-                        Task { @MainActor in
-                            AppState.shared.openFile(url)
-                        }
-                        break
-                    }
-                }
+        #if os(macOS)
+            Settings {
+                SettingsView()
             }
         #endif
     }
 }
+
+#if os(macOS)
+    final class AppDelegate: NSObject, NSApplicationDelegate {
+        func application(_: NSApplication, open urls: [URL]) {
+            for url in urls {
+                Task { @MainActor in
+                    AppState.shared.openFile(url)
+                }
+            }
+        }
+
+        func applicationDidFinishLaunching(_: Notification) {
+            #if DEBUG
+                // Command line argument file opening only works outside App Sandbox
+                let args = CommandLine.arguments
+                if args.count > 1 {
+                    for arg in args.dropFirst() {
+                        let url = URL(fileURLWithPath: arg)
+                        if FileManager.default.fileExists(atPath: url.path) {
+                            Task { @MainActor in
+                                AppState.shared.openFile(url)
+                            }
+                            break
+                        }
+                    }
+                }
+            #endif
+        }
+    }
+#endif
 
 @Observable
 @MainActor
@@ -85,8 +101,13 @@ final class AppState {
             return
         }
 
-        // Verify the file exists
-        guard FileManager.default.fileExists(atPath: url.path) else {
+        // A URL handed over by the Files app is only readable while its security scope is held
+        let accessing = url.startAccessingSecurityScopedResource()
+        let exists = FileManager.default.fileExists(atPath: url.path)
+        if accessing {
+            url.stopAccessingSecurityScopedResource()
+        }
+        guard exists else {
             openError = "File not found: \(url.lastPathComponent)"
             showError = true
             return

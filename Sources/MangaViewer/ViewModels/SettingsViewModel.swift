@@ -1,9 +1,9 @@
-import AppKit
 import Foundation
 import SwiftUI
 
 extension Notification.Name {
     static let watchedFolderRemoved = Notification.Name("MangaViewerWatchedFolderRemoved")
+    static let watchedFolderAdded = Notification.Name("MangaViewerWatchedFolderAdded")
 }
 
 @Observable
@@ -18,6 +18,14 @@ final class SettingsViewModel {
 
     @ObservationIgnored
     @AppStorage("watchedFolders") private var storedWatchedFolders: Data = .init()
+
+    init(store: UserDefaults = .standard) {
+        _storedReadingDirection = AppStorage(
+            wrappedValue: ReadingDirection.rightToLeft.rawValue, "defaultReadingDirection", store: store
+        )
+        _storedZoomMode = AppStorage(wrappedValue: ZoomMode.fitPage.rawValue, "defaultZoomMode", store: store)
+        _storedWatchedFolders = AppStorage(wrappedValue: Data(), "watchedFolders", store: store)
+    }
 
     var readingDirection: ReadingDirection {
         get { ReadingDirection(rawValue: storedReadingDirection) ?? .rightToLeft }
@@ -39,12 +47,17 @@ final class SettingsViewModel {
     }
 
     func addWatchedFolder(_ url: URL) async {
+        let accessing = url.startAccessingSecurityScopedResource()
         await SecurityScopedBookmarkManager.shared.saveBookmark(for: url)
+        if accessing {
+            url.stopAccessingSecurityScopedResource()
+        }
         var folders = watchedFolders
         if !folders.contains(url) {
             folders.append(url)
             watchedFolders = folders
         }
+        NotificationCenter.default.post(name: .watchedFolderAdded, object: url)
     }
 
     func removeWatchedFolder(_ url: URL) async {

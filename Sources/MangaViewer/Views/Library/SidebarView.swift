@@ -1,8 +1,10 @@
 import SwiftData
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SidebarView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(LibraryViewModel.self) private var library: LibraryViewModel?
     @Query(sort: \Book.title) private var books: [Book]
     @Query(sort: \Tag.name) private var tags: [Tag]
 
@@ -12,6 +14,8 @@ struct SidebarView: View {
     @State private var navigationBook: Book?
     @State private var showAddTagSheet = false
     @State private var selectedTag: Tag?
+    @State private var showImporter = false
+    @State private var showSettings = false
 
     private var filteredBooks: [Book] {
         var result = books
@@ -107,15 +111,32 @@ struct SidebarView: View {
                 }
             }
             .listStyle(.sidebar)
+            #if os(iOS)
+                .refreshable {
+                    await library?.rescanWatchedFolders()
+                }
+            #endif
         }
         .toolbar {
+            #if os(iOS)
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                    .accessibilityLabel("Settings")
+                }
+            #endif
+
             ToolbarItem(placement: .primaryAction) {
                 Button {
-                    importBooks()
+                    showImporter = true
                 } label: {
                     Image(systemName: "plus")
                 }
                 .help("Add Books")
+                .accessibilityLabel("Add Books")
             }
 
             ToolbarItem(placement: .primaryAction) {
@@ -144,6 +165,32 @@ struct SidebarView: View {
                 }
             }
         }
+        .fileImporter(
+            isPresented: $showImporter,
+            allowedContentTypes: [.zip, .data, .folder],
+            allowsMultipleSelection: true
+        ) { result in
+            let urls: [URL]
+            switch result {
+            case let .success(picked):
+                urls = picked
+            case let .failure(error):
+                AppState.shared.openError = error.localizedDescription
+                AppState.shared.showError = true
+                return
+            }
+            guard let library else { return }
+            Task {
+                for url in urls {
+                    await library.addFolder(url)
+                }
+            }
+        }
+        #if os(iOS)
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
+        }
+        #endif
         .sheet(isPresented: $showAddTagSheet) {
             AddTagSheet(isPresented: $showAddTagSheet) { name, colorHex in
                 addTag(name: name, colorHex: colorHex)
@@ -170,25 +217,6 @@ struct SidebarView: View {
         modelContext.insert(tag)
         try? modelContext.save()
     }
-
-    private func importBooks() {
-        let panel = NSOpenPanel()
-        panel.allowsMultipleSelection = true
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = true
-        panel.allowedContentTypes = [.zip, .data, .folder]
-
-        panel.begin { response in
-            guard response == .OK else { return }
-
-            Task { @MainActor in
-                let viewModel = LibraryViewModel(modelContext: modelContext, startWatching: false)
-                for url in panel.urls {
-                    await viewModel.addFolder(url)
-                }
-            }
-        }
-    }
 }
 
 struct BookRow: View {
@@ -198,10 +226,10 @@ struct BookRow: View {
         HStack(spacing: 12) {
             // Thumbnail
             if let thumbnailData = book.thumbnailData,
-               let thumbnail = NSImage(data: thumbnailData) {
-                Image(nsImage: thumbnail)
+               let thumbnail = PlatformImage(imageData: thumbnailData) {
+                Image(platformImage: thumbnail)
                     .resizable()
-                    .aspectRatio(contentMode: .fill)
+                    .scaledToFill()
                     .frame(width: 40, height: 56)
                     .clipped()
                     .cornerRadius(4)

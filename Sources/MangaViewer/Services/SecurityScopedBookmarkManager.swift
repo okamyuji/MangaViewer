@@ -5,6 +5,18 @@ private let logger = Logger(
     subsystem: Bundle.main.bundleIdentifier ?? "MangaViewer", category: "BookmarkManager"
 )
 
+/// iOS has no `.withSecurityScope`; a plain bookmark of a document-picker URL resolves to a
+/// security-scoped URL there (Apple: "Providing access to directories").
+enum BookmarkOptions {
+    #if os(macOS)
+        static let creation: URL.BookmarkCreationOptions = .withSecurityScope
+        static let resolution: URL.BookmarkResolutionOptions = .withSecurityScope
+    #else
+        static let creation: URL.BookmarkCreationOptions = .minimalBookmark
+        static let resolution: URL.BookmarkResolutionOptions = []
+    #endif
+}
+
 actor SecurityScopedBookmarkManager {
     static let shared = SecurityScopedBookmarkManager()
 
@@ -16,7 +28,7 @@ actor SecurityScopedBookmarkManager {
     func saveBookmark(for url: URL) {
         do {
             let bookmarkData = try url.bookmarkData(
-                options: .withSecurityScope,
+                options: BookmarkOptions.creation,
                 includingResourceValuesForKeys: nil,
                 relativeTo: nil
             )
@@ -42,7 +54,7 @@ actor SecurityScopedBookmarkManager {
         do {
             url = try URL(
                 resolvingBookmarkData: bookmarkData,
-                options: .withSecurityScope,
+                options: BookmarkOptions.resolution,
                 relativeTo: nil,
                 bookmarkDataIsStale: &isStale
             )
@@ -61,7 +73,7 @@ actor SecurityScopedBookmarkManager {
         if isStale {
             do {
                 updatedData = try url.bookmarkData(
-                    options: .withSecurityScope,
+                    options: BookmarkOptions.creation,
                     includingResourceValuesForKeys: nil,
                     relativeTo: nil
                 )
