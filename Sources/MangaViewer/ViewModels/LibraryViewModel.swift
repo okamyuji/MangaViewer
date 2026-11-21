@@ -78,7 +78,11 @@ final class LibraryViewModel {
 
         if isDirectory.boolValue {
             // A picked folder joins the watched folders, so books added to it later are imported too
-            _ = await settingsViewModel.registerWatchedFolder(url)
+            if await !settingsViewModel.registerWatchedFolder(url) {
+                AppState.shared.openError =
+                    "Could not keep access to \(url.lastPathComponent), so books added to it later will not be imported."
+                AppState.shared.showError = true
+            }
             await scanFolder(url)
         } else {
             await addBook(at: url)

@@ -332,6 +332,8 @@ final class ReaderViewModel {
         guard let provider else { return }
 
         isLoading = true
+        // A page whose placeholder failed to render left an error; this load sets it again if needed
+        errorMessage = nil
 
         await loadSpreadImages()
 

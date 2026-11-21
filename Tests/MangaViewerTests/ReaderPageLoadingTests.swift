@@ -38,6 +38,22 @@ struct ReaderPageLoadingTests {
         #expect(vm.errorMessage?.hasPrefix("Page 1:") == true)
     }
 
+    @Test("moving to a page that loads clears the error left by a failed page")
+    func pageErrorClearsOnNextLoad() async throws {
+        let vm = makeIsolatedReader()
+        vm.renderPlaceholder = { _ in nil }
+        await vm.openProvider(StubPageProvider(pageCount: 4, failingPages: [0]), title: "Book")
+        #expect(vm.errorMessage != nil)
+
+        vm.goToPage(2)
+        for _ in 0 ..< 50 where vm.errorMessage != nil {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+
+        #expect(vm.errorMessage == nil)
+        #expect(vm.spreadImages.left != nil || vm.spreadImages.right != nil)
+    }
+
     @Test("a page that fails to decode is replaced by an 800x1200 placeholder")
     func failingPageShowsPlaceholder() async {
         let vm = makeIsolatedReader()
