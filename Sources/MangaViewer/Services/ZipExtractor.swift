@@ -25,9 +25,9 @@ final class ZipExtractor: PageProvider, @unchecked Sendable {
             return (path, entry)
         }
 
-        let sortedPaths = ImageFileFilter.sortedNaturally(allEntries.map(\.0))
         // A malformed archive can store one path twice; keep the first instead of trapping
         let entryMap = Dictionary(allEntries, uniquingKeysWith: { first, _ in first })
+        let sortedPaths = ImageFileFilter.sortedNaturally(Array(entryMap.keys))
         imageEntries = sortedPaths.compactMap { entryMap[$0] }
         pageCount = imageEntries.count
     }

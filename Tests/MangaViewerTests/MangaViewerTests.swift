@@ -109,9 +109,11 @@ struct ZipExtractorTests {
             }
         }
 
+        defer { try? FileManager.default.removeItem(at: url) }
+
         let extractor = try ZipExtractor(url: url)
 
-        #expect(extractor.pageCount >= 1)
+        #expect(extractor.pageCount == 1)
         #expect(try await extractor.image(at: 0).pixelSize == CGSize(width: 4, height: 6))
     }
 }

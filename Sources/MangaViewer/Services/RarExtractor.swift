@@ -29,11 +29,11 @@ final class RarExtractor: PageProvider, @unchecked Sendable {
                 !entry.directory && ImageFileFilter.isImageFile(entry.fileName)
             }
 
-            let sortedNames = ImageFileFilter.sortedNaturally(imageOnlyEntries.map(\.fileName))
             // A malformed archive can store one name twice; keep the first instead of trapping
             let entryMap = Dictionary(
                 imageOnlyEntries.map { ($0.fileName, $0) }, uniquingKeysWith: { first, _ in first }
             )
+            let sortedNames = ImageFileFilter.sortedNaturally(Array(entryMap.keys))
             imageEntries = sortedNames.compactMap { entryMap[$0] }
             pageCount = imageEntries.count
 
