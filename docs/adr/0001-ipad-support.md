@@ -20,7 +20,7 @@ MangaViewerはmacOS 14以降で動くSwiftUIアプリです。画像の型に`NS
 | ブックマークの指定 | macOSと同じ`.withSecurityScope`を使う、プラットフォームで分ける | macOSは`.withSecurityScope`、iPadは`.minimalBookmark` | iOS SDKの`NSURL.h`は`.withSecurityScope`を`API_UNAVAILABLE(ios)`としています。iPadの指定は[Providing access to directories](https://developer.apple.com/documentation/uikit/providing-access-to-directories)のサンプルに合わせます |
 | ファイル選択 | `NSOpenPanel`と`UIDocumentPickerViewController`を書き分ける、`fileImporter`にまとめる | 両方で`fileImporter`を使う | [fileImporter](https://developer.apple.com/documentation/swiftui/view/fileimporter(ispresented:allowedcontenttypes:allowsmultipleselection:oncompletion:))はmacOS 11とiPadOS 14から使えます |
 | フォルダの読み取り | そのまま列挙する、ファイル調整を通して列挙する | iPadでは`NSFileCoordinator`を通す | Appleの[Providing access to directories](https://developer.apple.com/documentation/uikit/providing-access-to-directories)が、選んだフォルダの読み書きにファイル調整を求めています |
-| 監視フォルダ | iPadでも常時監視する、起動時と引き下げ操作で読み直す | macOSは常時監視、iPadは起動時、フォルダの追加時、引き下げ操作で読み直す | iPadで外部のファイルプロバイダの変更通知が届くことは確かめられていません |
+| 監視フォルダ | iPadでも常時監視する、起動時と引き下げ操作で読み直す | macOSは常時監視、iPadは起動時、フォルダの追加時、引き下げ操作で読み直す。「本を追加」で選んだフォルダも監視フォルダに登録する | iPadで外部のファイルプロバイダの変更通知が届くことは確かめられていません |
 | ページ表示 | 常に見開き、向きで切り替える | iPadでは縦向きで1ページ、横向きで見開き | 縦向きで2ページを並べると1ページの幅が狭くなります |
 | ページ送り | ボタンだけ、タップとスワイプを足す | 左右3分の1のタップ、左右のスワイプ、中央タップでツールバーの出し入れ | 右綴じでは左側のタップと右方向へのスワイプで次のページへ進みます。左綴じでは左右が逆になります。ズーム中のドラッグは画像の移動に使います |
 | キー入力 | iPadで`UIKeyCommand`を使う、`onKeyPress`を使う | iPadは[onKeyPress](https://developer.apple.com/documentation/swiftui/view/onkeypress(_:action:))、macOSは今の`NSEvent`の監視 | `onKeyPress`はiPadOS 17から使えます。macOSの挙動は変えません |

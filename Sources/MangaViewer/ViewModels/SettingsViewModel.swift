@@ -50,6 +50,14 @@ final class SettingsViewModel {
     /// the folder could never be read again after the picker's access ends.
     @discardableResult
     func addWatchedFolder(_ url: URL) async -> Bool {
+        guard await registerWatchedFolder(url) else { return false }
+        NotificationCenter.default.post(name: .watchedFolderAdded, object: url)
+        return true
+    }
+
+    /// Saves the folder's bookmark and lists it as watched without asking the library to scan it,
+    /// for callers that scan the folder themselves.
+    func registerWatchedFolder(_ url: URL) async -> Bool {
         let accessing = url.startAccessingSecurityScopedResource()
         let saved = await SecurityScopedBookmarkManager.shared.saveBookmark(for: url)
         if accessing {
@@ -61,7 +69,6 @@ final class SettingsViewModel {
             folders.append(url)
             watchedFolders = folders
         }
-        NotificationCenter.default.post(name: .watchedFolderAdded, object: url)
         return true
     }
 

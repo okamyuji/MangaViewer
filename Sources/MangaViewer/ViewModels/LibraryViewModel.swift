@@ -75,7 +75,8 @@ final class LibraryViewModel {
         }
 
         if isDirectory.boolValue {
-            await SecurityScopedBookmarkManager.shared.saveBookmark(for: url)
+            // A picked folder joins the watched folders, so books added to it later are imported too
+            _ = await settingsViewModel.registerWatchedFolder(url)
             await scanFolder(url)
         } else {
             await addBook(at: url)

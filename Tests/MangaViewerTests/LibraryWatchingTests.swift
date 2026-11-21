@@ -79,6 +79,21 @@ struct LibraryWatchingTests {
         #expect(try context.fetchCount(FetchDescriptor<Book>()) == 6)
     }
 
+    @Test("a folder picked with Add Books is watched, so books added to it later are imported on rescan")
+    func addedBooksFolderIsRescanned() async throws {
+        let context = try makeContext()
+        let settings = SettingsViewModel(store: makeIsolatedSettingsStore())
+        let folder = try makeFolderWithSampleBook(pages: 2)
+        let library = LibraryViewModel(modelContext: context, startWatching: false, settings: settings)
+
+        await library.addFolder(folder)
+        try SampleBook.writeCBZ(to: folder.appendingPathComponent("later.cbz"), pageCount: 2)
+        await library.rescanWatchedFolders()
+
+        #expect(settings.watchedFolders == [folder])
+        #expect(try context.fetchCount(FetchDescriptor<Book>()) == 2)
+    }
+
     @Test("a folder added in Settings is imported without restarting the app")
     func addedFolderIsImported() async throws {
         let context = try makeContext()
