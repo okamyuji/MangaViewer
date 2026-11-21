@@ -12,12 +12,33 @@ private func makeContext() throws -> ModelContext {
     return ModelContext(container)
 }
 
-/// One suite emptied per test; the suite is serialized, and a fresh name per test would leave a
-/// preferences file behind on every run.
+/// An emptied settings suite that no other live store shares, though tests in other suites run
+/// alongside. Names are numbered slots handed back on release: a fresh name per test would leave a
+/// preferences file behind on every run, since the preferences daemon keeps or rewrites the file.
+private final class IsolatedDefaults: UserDefaults {
+    private static let lock = NSLock()
+    private nonisolated(unsafe) static var slotsInUse = Set<Int>()
+    private let slot: Int
+
+    init() {
+        let slot = Self.lock.withLock {
+            let free = (0...).first { !Self.slotsInUse.contains($0) }!
+            Self.slotsInUse.insert(free)
+            return free
+        }
+        self.slot = slot
+        let name = "MangaViewerTests.\(slot)"
+        UserDefaults().removePersistentDomain(forName: name)
+        super.init(suiteName: name)!
+    }
+
+    deinit {
+        Self.lock.withLock { _ = Self.slotsInUse.remove(slot) }
+    }
+}
+
 private func makeIsolatedSettingsStore() -> UserDefaults {
-    let name = "MangaViewerTests.LibraryWatching"
-    UserDefaults().removePersistentDomain(forName: name)
-    return UserDefaults(suiteName: name)!
+    IsolatedDefaults()
 }
 
 private func makeFolderWithSampleBook(pages: Int) throws -> URL {
