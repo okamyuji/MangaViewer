@@ -12,8 +12,12 @@ private func makeContext() throws -> ModelContext {
     return ModelContext(container)
 }
 
+/// One suite emptied per test; the suite is serialized, and a fresh name per test would leave a
+/// preferences file behind on every run.
 private func makeIsolatedSettingsStore() -> UserDefaults {
-    UserDefaults(suiteName: "MangaViewerTests.\(UUID().uuidString)")!
+    let name = "MangaViewerTests.LibraryWatching"
+    UserDefaults().removePersistentDomain(forName: name)
+    return UserDefaults(suiteName: name)!
 }
 
 private func makeFolderWithSampleBook(pages: Int) throws -> URL {
