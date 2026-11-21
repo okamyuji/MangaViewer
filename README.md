@@ -200,18 +200,22 @@ cp Local.xcconfig.template Local.xcconfig
 ### iPadへのインストール
 
 1. `Local.xcconfig`の`DEVELOPMENT_TEAM`に、Apple Developer Programに登録したチームIDを書きます。
-2. `xcodegen generate`でプロジェクトを生成し、Xcodeで`MangaViewer-iPad`スキームを選びます。
-3. iPadをMacに接続して実行先に選び、実行します。
+2. 自分のチームでビルドするときは、`project.yml`の`PRODUCT_BUNDLE_IDENTIFIER`をすべて自分のIDに変えます。同じApp IDは別のチームで登録できないためです。アプリ本体（`MangaViewer`と`MangaViewer-iPad`）と試験（`MangaViewerTests`、`MangaViewerTests-iPad`、`MangaViewerUITests-iPad`）で、同じ接頭辞を使います。
+3. `xcodegen generate`でプロジェクトを生成し、Xcodeで`MangaViewer-iPad`スキームを選びます。
+4. iPadをMacに接続して実行先に選び、実行します。
 
 Xcodeを開かずにコマンドで入れる場合は、次のとおりです。iPadの「設定」>「プライバシーとセキュリティ」で「デベロッパモード」を有効にしておきます。
 
 ```bash
-# 実機向けのReleaseビルド（署名に使うプロファイルは自動で作成・更新します）
-xcodebuild -project MangaViewer.xcodeproj -scheme MangaViewer-iPad -configuration Release \
-  -destination "generic/platform=iOS" -derivedDataPath build/ipad -allowProvisioningUpdates build
-
-# 接続したiPadの識別子を調べてインストール
+# 接続したiPadの識別子を調べる
 xcrun devicectl list devices
+
+# そのiPad向けのReleaseビルド。iPadを開発者アカウントに登録し、署名用のプロファイルを作成・更新します
+xcodebuild -project MangaViewer.xcodeproj -scheme MangaViewer-iPad -configuration Release \
+  -destination "platform=iOS,id=<識別子>" -derivedDataPath build/ipad \
+  -allowProvisioningUpdates -allowProvisioningDeviceRegistration build
+
+# インストール
 xcrun devicectl device install app --device <識別子> build/ipad/Build/Products/Release-iphoneos/MangaViewer.app
 ```
 
