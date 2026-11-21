@@ -72,7 +72,8 @@ final class ReaderViewModel {
         do {
             let url = try await resolveBookURL(book)
 
-            provider = try ArchiveService.provider(for: url)
+            // A coordinated read can wait for an iCloud download, so open the book off MainActor
+            provider = try await Task.detached { try ArchiveService.provider(for: url) }.value
             totalPages = provider?.pageCount ?? 0
 
             if totalPages == 0 {

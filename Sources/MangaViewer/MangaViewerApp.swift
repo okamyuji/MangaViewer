@@ -108,7 +108,8 @@ final class AppState {
 
         // A URL handed over by the Files app is only readable while its security scope is held
         let accessing = url.startAccessingSecurityScopedResource()
-        let exists = FileManager.default.fileExists(atPath: url.path)
+        // An iCloud file not downloaded yet is not at its path; opening it downloads it
+        let exists = FileManager.default.fileExists(atPath: url.path) || FileManager.default.isUbiquitousItem(at: url)
         if accessing {
             url.stopAccessingSecurityScopedResource()
         }

@@ -39,6 +39,17 @@ enum ReaderGesture {
         )
     }
 
+    /// Keeps a centered page from being dragged past its edges, and recenters an axis that no
+    /// longer overflows, e.g. after pinching back to fit.
+    static func clampedOffset(_ offset: CGSize, contentSize: CGSize, containerSize: CGSize) -> CGSize {
+        let limitX = max(0, (contentSize.width - containerSize.width) / 2)
+        let limitY = max(0, (contentSize.height - containerSize.height) / 2)
+        return CGSize(
+            width: min(max(offset.width, -limitX), limitX),
+            height: min(max(offset.height, -limitY), limitY)
+        )
+    }
+
     /// Half a point of slack so a fitWidth page whose width rounds to the reader's is not "wider".
     static func overflows(_ content: CGFloat, _ container: CGFloat) -> Bool {
         content > container + 0.5

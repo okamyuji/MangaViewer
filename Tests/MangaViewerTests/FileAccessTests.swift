@@ -72,6 +72,7 @@ struct AppStateOpenFileTests {
     @Test("an existing archive is queued for opening")
     func existingArchive() throws {
         reset()
+        defer { reset() }
         let url = try makeTemporaryFile(named: "book.cbz")
         AppState.shared.openFile(url)
         #expect(AppState.shared.fileToOpen == url)
@@ -81,6 +82,7 @@ struct AppStateOpenFileTests {
     @Test("an unsupported extension is rejected with an error")
     func unsupportedExtension() throws {
         reset()
+        defer { reset() }
         try AppState.shared.openFile(makeTemporaryFile(named: "notes.txt"))
         #expect(AppState.shared.fileToOpen == nil)
         #expect(AppState.shared.openError == "Unsupported file format: txt")
@@ -90,6 +92,7 @@ struct AppStateOpenFileTests {
     @Test("a missing archive is rejected with an error")
     func missingArchive() {
         reset()
+        defer { reset() }
         AppState.shared.openFile(URL(fileURLWithPath: "/nonexistent/\(UUID().uuidString).cbz"))
         #expect(AppState.shared.fileToOpen == nil)
         #expect(AppState.shared.openError?.hasPrefix("File not found:") == true)

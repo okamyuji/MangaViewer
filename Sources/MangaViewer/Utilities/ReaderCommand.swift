@@ -36,7 +36,7 @@ enum ReaderCommand: Equatable {
         case "f": self = .toggleFullScreen
         case "b": self = .toggleBookmark
         case "0": self = .resetZoom
-        case "=": self = .zoomIn
+        case "=", "+": self = .zoomIn
         case "-": self = .zoomOut
         case .escape: self = .close
         default: return nil

@@ -33,6 +33,8 @@ struct ReaderCommandTests {
         #expect(ReaderCommand(key: "b") == .toggleBookmark)
         #expect(ReaderCommand(key: "0") == .resetZoom)
         #expect(ReaderCommand(key: "=") == .zoomIn)
+        // Shift+= on a US layout types "+"; macOS maps the physical key either way
+        #expect(ReaderCommand(key: "+") == .zoomIn)
         #expect(ReaderCommand(key: "-") == .zoomOut)
         #expect(ReaderCommand(key: .escape) == .close)
         #expect(ReaderCommand(key: "x") == nil)

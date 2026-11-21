@@ -39,10 +39,7 @@ struct ZoomableImageView: View {
                         .onChanged { value in
                             #if os(iOS)
                                 let translation = ReaderGesture.panTranslation(
-                                    value.translation,
-                                    contentSize: CGSize(
-                                        width: imageSize.width * zoomScale, height: imageSize.height * zoomScale
-                                    ),
+                                    value.translation, contentSize: displayedSize(imageSize),
                                     containerSize: geometry.size
                                 )
                             #else
@@ -52,6 +49,11 @@ struct ZoomableImageView: View {
                                 width: lastOffset.width + translation.width,
                                 height: lastOffset.height + translation.height
                             )
+                            #if os(iOS)
+                                offset = ReaderGesture.clampedOffset(
+                                    offset, contentSize: displayedSize(imageSize), containerSize: geometry.size
+                                )
+                            #endif
                         }
                         .onEnded { _ in
                             lastOffset = offset
@@ -74,17 +76,34 @@ struct ZoomableImageView: View {
                     }
                 }
             #if os(iOS)
+                .onChange(of: zoomScale) {
+                    recenter(imageSize: calculateImageSize(for: geometry.size), containerSize: geometry.size)
+                }
+                .onChange(of: zoomMode) {
+                    recenter(imageSize: calculateImageSize(for: geometry.size), containerSize: geometry.size)
+                }
                 .preference(
                     key: PageOverflowsHorizontallyKey.self,
-                    value: ReaderGesture.overflows(imageSize.width * zoomScale, geometry.size.width)
+                    value: ReaderGesture.overflows(displayedSize(imageSize).width, geometry.size.width)
                 )
             #endif
         }
     }
 
+    private func displayedSize(_ imageSize: CGSize) -> CGSize {
+        CGSize(width: imageSize.width * zoomScale, height: imageSize.height * zoomScale)
+    }
+
+    private func recenter(imageSize: CGSize, containerSize: CGSize) {
+        offset = ReaderGesture.clampedOffset(offset, contentSize: displayedSize(imageSize), containerSize: containerSize)
+        lastOffset = offset
+    }
+
     private func calculateImageSize(for containerSize: CGSize) -> CGSize {
         let imageWidth = image.size.width
         let imageHeight = image.size.height
+        // The error placeholder can be an empty image; dividing by its zero size gives NaN frames
+        guard imageWidth > 0, imageHeight > 0 else { return .zero }
 
         switch zoomMode {
         case .fitPage:

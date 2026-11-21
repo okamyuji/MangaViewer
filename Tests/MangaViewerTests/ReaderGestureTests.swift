@@ -86,6 +86,23 @@ struct ReaderGestureTests {
     }
 
     @Test(
+        "a page offset stays within the part of the page that overflows the reader",
+        arguments: [
+            // 1251 tall in a 1100 reader: at most 75.5 up or down, no horizontal travel
+            (CGSize(width: 834, height: 1251), CGSize(width: 40, height: -200), CGSize(width: 0, height: -75.5)),
+            // after pinching back to fit, a pan left over from the zoom returns to center
+            (CGSize(width: 700, height: 1000), CGSize(width: 30, height: 30), CGSize.zero),
+            (CGSize(width: 1200, height: 1251), CGSize(width: 100, height: 10), CGSize(width: 100, height: 10))
+        ]
+    )
+    func clampedOffset(contentSize: CGSize, offset: CGSize, expected: CGSize) {
+        let clamped = ReaderGesture.clampedOffset(
+            offset, contentSize: contentSize, containerSize: CGSize(width: 834, height: 1100)
+        )
+        #expect(clamped == expected)
+    }
+
+    @Test(
         "a pinch scales the zoom from where the gesture started, within 0.25 to 5",
         arguments: [
             (CGFloat(1), CGFloat(1.5), CGFloat(1.5)),

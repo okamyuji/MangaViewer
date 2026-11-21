@@ -2,7 +2,6 @@ import Foundation
 import Unrar
 
 final class RarExtractor: PageProvider, @unchecked Sendable {
-    private let archive: Archive
     private let url: URL
     private let imageEntries: [Entry]
     private let lock = NSLock()
@@ -10,12 +9,13 @@ final class RarExtractor: PageProvider, @unchecked Sendable {
 
     init(url: URL) throws {
         self.url = url
-        archive = try CoordinatedRead.read(url) { readable in
+        // Unrar reopens the file by URL for every call, so the listing happens inside the read
+        let allEntries = try CoordinatedRead.read(url) { readable in
             guard FileManager.default.fileExists(atPath: readable.path) else {
                 throw MangaViewerError.archiveNotFound
             }
             do {
-                return try Archive(fileURL: readable)
+                return try Archive(fileURL: readable).entries()
             } catch {
                 throw MangaViewerError.extractionFailed(
                     "Failed to open RAR archive: \(error.localizedDescription)"
@@ -24,7 +24,6 @@ final class RarExtractor: PageProvider, @unchecked Sendable {
         }
 
         do {
-            let allEntries = try archive.entries()
             let imageOnlyEntries = allEntries.filter { entry in
                 !entry.directory && ImageFileFilter.isImageFile(entry.fileName)
             }
@@ -69,8 +68,8 @@ final class RarExtractor: PageProvider, @unchecked Sendable {
         defer { lock.unlock() }
 
         do {
-            // Unrar reopens the file for every extraction, so each one is a coordinated read
-            return try CoordinatedRead.read(url) { _ in try archive.extract(entry) }
+            // Unrar finds the entry by name, so an archive opened at the coordinated URL works
+            return try CoordinatedRead.read(url) { readable in try Archive(fileURL: readable).extract(entry) }
         } catch {
             throw MangaViewerError.extractionFailed("Failed to extract: \(error.localizedDescription)")
         }
