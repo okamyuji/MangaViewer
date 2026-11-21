@@ -203,6 +203,18 @@ cp Local.xcconfig.template Local.xcconfig
 2. `xcodegen generate`でプロジェクトを生成し、Xcodeで`MangaViewer-iPad`スキームを選びます。
 3. iPadをMacに接続して実行先に選び、実行します。
 
+Xcodeを開かずにコマンドで入れる場合は、次のとおりです。iPadの「設定」>「プライバシーとセキュリティ」で「デベロッパモード」を有効にしておきます。
+
+```bash
+# 実機向けのReleaseビルド（署名に使うプロファイルは自動で作成・更新します）
+xcodebuild -project MangaViewer.xcodeproj -scheme MangaViewer-iPad -configuration Release \
+  -destination "generic/platform=iOS" -derivedDataPath build/ipad -allowProvisioningUpdates build
+
+# 接続したiPadの識別子を調べてインストール
+xcrun devicectl list devices
+xcrun devicectl device install app --device <識別子> build/ipad/Build/Products/Release-iphoneos/MangaViewer.app
+```
+
 本は「ファイル」アプリの場所をそのまま参照します。ライブラリと読書の進み具合は端末ごとに保存され、macOS版とは同期しません。
 
 ### Xcodeプロジェクト生成
