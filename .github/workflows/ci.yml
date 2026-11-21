@@ -38,6 +38,8 @@ jobs:
 
   # A release is a push to main whose CI passes: tag it vX.Y.Z from the Conventional Commit types since the last tag
   release:
+    # The called workflow checks this too; checking here keeps PR runs from starting a job with write access
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [audit, fastlane, security]
     permissions:
       contents: write

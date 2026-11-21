@@ -17,7 +17,7 @@ new_plist() {
 new_repo() {
     repo="$work/repo-$1"
     git init -q "$repo"
-    git -C "$repo" -c user.name=t -c user.email=t@example.invalid commit -q --allow-empty -m "first"
+    git -C "$repo" -c user.name=t -c user.email=t@example.invalid -c commit.gpgSign=false commit -q --allow-empty -m "first"
 }
 
 # Annotated and unsigned, like the tags the semver-tag workflow pushes
@@ -26,7 +26,7 @@ tag() {
 }
 
 commit() {
-    git -C "$repo" -c user.name=t -c user.email=t@example.invalid commit -q --allow-empty -m "$1"
+    git -C "$repo" -c user.name=t -c user.email=t@example.invalid -c commit.gpgSign=false commit -q --allow-empty -m "$1"
 }
 
 expect() {
@@ -52,6 +52,8 @@ new_repo prerelease
 tag v0.1.0
 commit second
 tag v0.1.1-rc1
+tag xv9.9.9
+tag v1.0.08
 sh "$script" "$plist" "$repo"
 expect "a tag that is not plain vX.Y.Z is ignored" 0.1.0 2
 
