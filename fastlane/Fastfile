@@ -15,7 +15,12 @@ platform :mac do
   lane :ipad_test do
     require "json"
     runtimes = JSON.parse(sh("xcrun simctl list devices available -j", log: false))["devices"]
-    ipad = runtimes.select { |runtime, _| runtime.include?("iOS") }.values.flatten.find { |device| device["name"].start_with?("iPad") }
+    # Runtime keys look like com.apple.CoreSimulator.SimRuntime.iOS-27-0; the app needs iOS 17 or later
+    ios_version = ->(runtime) { runtime[/iOS-(\d+)-(\d+)/] ? [$1.to_i, $2.to_i] : nil }
+    ipad = runtimes.select { |runtime, _| (ios_version.call(runtime) || [0])[0] >= 17 }
+                   .sort_by { |runtime, _| ios_version.call(runtime) }.reverse
+                   .flat_map { |_, devices| devices }
+                   .find { |device| device["name"].start_with?("iPad") }
     UI.user_error!("No iPad simulator is available") unless ipad
     sh("cd .. && xcodebuild -project MangaViewer.xcodeproj -scheme MangaViewer-iPad -configuration Debug " \
        "-destination 'platform=iOS Simulator,id=#{ipad['udid']}' test")

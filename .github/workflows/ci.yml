@@ -12,7 +12,7 @@ jobs:
   audit:
     uses: okamyuji/reusable-workflows/.github/workflows/ruby-audit.yml@v1
 
-  # fastlane の ci レーン（xcodegen、swiftlint、swiftformat、xcodebuild test、Release build）を動かす
+  # fastlane の ci レーン（xcodegen、swiftlint、swiftformat、macOS と iPad シミュレータの xcodebuild test、Release build）を動かす
   fastlane:
     runs-on: macos-latest
     steps:
