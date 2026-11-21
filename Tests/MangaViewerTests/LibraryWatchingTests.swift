@@ -140,6 +140,11 @@ struct LibraryWatchingTests {
 
         #expect(AppState.shared.showError)
         #expect(AppState.shared.openError?.contains(name) == true)
+
+        // macOS rescans on every file change; the same folder is reported only once
+        AppState.shared.showError = false
+        await library.rescanWatchedFolders()
+        #expect(AppState.shared.showError == false)
     }
 
     @Test("a reader whose open was cancelled does not keep the book it finished opening")

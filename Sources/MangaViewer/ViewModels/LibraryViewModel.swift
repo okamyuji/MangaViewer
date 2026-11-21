@@ -9,6 +9,8 @@ final class LibraryViewModel {
 
     private let settingsViewModel: SettingsViewModel
     private var isRefreshing = false
+    /// Folders already reported as inaccessible, so repeated rescans do not raise the alert again
+    private var reportedInaccessiblePaths: Set<String> = []
 
     @ObservationIgnored
     private nonisolated(unsafe) var folderObservers: [any NSObjectProtocol] = []
@@ -229,8 +231,9 @@ final class LibraryViewModel {
     }
 
     private func reportInaccessible(_ folders: [URL]) {
-        guard !folders.isEmpty else { return }
-        let names = folders.map(\.lastPathComponent).joined(separator: ", ")
+        let newFolders = folders.filter { reportedInaccessiblePaths.insert($0.path).inserted }
+        guard !newFolders.isEmpty else { return }
+        let names = newFolders.map(\.lastPathComponent).joined(separator: ", ")
         AppState.shared.openError = "Cannot access watched folders: \(names). Choose them again in Settings."
         AppState.shared.showError = true
     }

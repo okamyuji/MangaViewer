@@ -83,7 +83,7 @@ struct ReaderView: View {
                 }
             }
         }
-        // .task is cancelled when the reader disappears, so a slow open does not outlive it
+        // .task is cancelled when the reader disappears, so a book that finishes opening after that is dropped
         .task {
             if let book {
                 await viewModel.openBook(book, modelContext: modelContext)
