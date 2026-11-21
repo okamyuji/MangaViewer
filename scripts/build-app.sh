@@ -50,6 +50,7 @@ ${BUDDY} -c "Set :CFBundleExecutable ${APP_NAME}" "${PLIST}"
 ${BUDDY} -c "Set :CFBundleIdentifier work.okamyuji.mangaviewer" "${PLIST}"
 ${BUDDY} -c "Set :CFBundleName ${APP_NAME}" "${PLIST}"
 ${BUDDY} -c "Set :LSMinimumSystemVersion 14.0" "${PLIST}"
+sh "$(dirname "$0")/stamp-version.sh" "${PLIST}"
 # SwiftPM builds use .icns directly instead of Asset Catalog
 ${BUDDY} -c "Delete :CFBundleIconName" "${PLIST}" 2>/dev/null || true
 ${BUDDY} -c "Add :CFBundleIconFile string AppIcon" "${PLIST}" 2>/dev/null || true

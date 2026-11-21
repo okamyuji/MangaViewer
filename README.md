@@ -140,7 +140,10 @@ MangaViewer/
 │   └── PrivacyInfo.xcprivacy        # プライバシーマニフェスト
 │
 ├── scripts/
-│   └── build-app.sh                 # SPMリリースビルド＋.app作成
+│   ├── build-app.sh                 # SPMリリースビルド＋.app作成
+│   ├── generate-icon.swift          # アプリアイコンの生成
+│   ├── stamp-version.sh             # ビルドしたアプリに版とビルド番号を書く
+│   └── stamp-version.test.sh        # stamp-version.shの試験
 │
 └── fastlane/
     ├── Appfile
@@ -279,6 +282,16 @@ swift test --filter ImageFileFilterTests
 # 詳細出力
 swift test --verbose
 ```
+
+### 版番号
+
+mainへのpushでCIの全ジョブが通ると、その先頭のコミットに`vX.Y.Z`タグが付きます。これを1回のリリースとします。PRはsquashマージするので、上げる桁はPRの題名の種類で決まります。
+
+- `feat!:`や本文の`BREAKING CHANGE:`はmajorを上げます。
+- `feat:`はminorを上げます。
+- それ以外（`fix:`、`test:`、`chore:`など）はpatchを上げます。
+
+アプリの版（`CFBundleShortVersionString`）は、ビルドしたコミットから辿れる最新の`vX.Y.Z`タグです。ビルド番号（`CFBundleVersion`）はコミット数です。Xcode、fastlane、`scripts/build-app.sh`のどれでビルドしても、`scripts/stamp-version.sh`が同じ値を書きます。タグが無いビルドは`0.0.0`になります。
 
 ### Linter / Formatter
 

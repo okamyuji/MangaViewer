@@ -35,3 +35,10 @@ jobs:
 
   security:
     uses: okamyuji/reusable-workflows/.github/workflows/security-scan.yml@v1
+
+  # A release is a push to main whose CI passes: tag it vX.Y.Z from the Conventional Commit types since the last tag
+  release:
+    needs: [audit, fastlane, security]
+    permissions:
+      contents: write
+    uses: okamyuji/reusable-workflows/.github/workflows/semver-tag.yml@v1
