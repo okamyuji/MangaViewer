@@ -1,4 +1,3 @@
-import AppKit
 import Foundation
 import ZIPFoundation
 
@@ -9,11 +8,14 @@ final class ZipExtractor: PageProvider, @unchecked Sendable {
     let pageCount: Int
 
     init(url: URL) throws {
-        guard FileManager.default.fileExists(atPath: url.path) else {
-            throw MangaViewerError.archiveNotFound
+        // Pages are read later through this open archive, so coordinating the open is enough to
+        // bring a file-provider placeholder onto the device.
+        let archive = try CoordinatedRead.read(url) { readable in
+            guard FileManager.default.fileExists(atPath: readable.path) else {
+                throw MangaViewerError.archiveNotFound
+            }
+            return try Archive(url: readable, accessMode: .read)
         }
-
-        let archive = try Archive(url: url, accessMode: .read)
         self.archive = archive
 
         let allEntries = archive.compactMap { entry -> (String, Entry)? in
@@ -23,13 +25,14 @@ final class ZipExtractor: PageProvider, @unchecked Sendable {
             return (path, entry)
         }
 
-        let sortedPaths = ImageFileFilter.sortedNaturally(allEntries.map(\.0))
-        let entryMap = Dictionary(uniqueKeysWithValues: allEntries)
+        // A malformed archive can store one path twice; keep the first instead of trapping
+        let entryMap = Dictionary(allEntries, uniquingKeysWith: { first, _ in first })
+        let sortedPaths = ImageFileFilter.sortedNaturally(Array(entryMap.keys))
         imageEntries = sortedPaths.compactMap { entryMap[$0] }
         pageCount = imageEntries.count
     }
 
-    func image(at index: Int) async throws -> NSImage {
+    func image(at index: Int) async throws -> PlatformImage {
         guard index >= 0 && index < imageEntries.count else {
             throw MangaViewerError.pageOutOfRange(index, imageEntries.count)
         }
@@ -37,7 +40,7 @@ final class ZipExtractor: PageProvider, @unchecked Sendable {
         let entry = imageEntries[index]
         let imageData = try extractEntry(entry)
 
-        guard let image = NSImage(data: imageData) else {
+        guard let image = PlatformImage(imageData: imageData) else {
             throw MangaViewerError.invalidImageData
         }
 

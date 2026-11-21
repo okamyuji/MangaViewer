@@ -1,7 +1,7 @@
-import AppKit
 import Foundation
 import os.log
 import SwiftData
+import SwiftUI
 
 private let logger = Logger(
     subsystem: Bundle.main.bundleIdentifier ?? "MangaViewer", category: "ReaderViewModel"
@@ -19,8 +19,16 @@ final class ReaderViewModel {
     var filterSettings: ImageFilterSettings = .default
     var isFullScreen: Bool = false
 
-    var spreadImages: (left: NSImage?, right: NSImage?) = (nil, nil)
+    var spreadImages: (left: PlatformImage?, right: PlatformImage?) = (nil, nil)
     var isLoading: Bool = false
+    @ObservationIgnored private var openRequestID = 0
+    /// Renders the error placeholder for a page; tests replace it to simulate a failed render.
+    @ObservationIgnored var renderPlaceholder: @MainActor (AnyView) -> CGImage? = { view in
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = 1
+        return renderer.cgImage
+    }
+
     var errorMessage: String?
     var showBookmarkToast: Bool = false
     var bookmarkToastMessage: String = ""
@@ -37,6 +45,8 @@ final class ReaderViewModel {
     private(set) var isCurrentPageWide: Bool = false
     /// Whether the display is showing a single page (wide primary or wide secondary)
     private var displaysSinglePage: Bool = false
+    /// Set by the view when the reader area is portrait (iPad held upright)
+    private var prefersSinglePage: Bool = false
 
     private var provider: PageProvider?
     private let imageCache = ImageCache()
@@ -46,7 +56,14 @@ final class ReaderViewModel {
     private var loadingTask: Task<Void, Never>?
     private var toastTask: Task<Void, Never>?
 
+    init(settings: SettingsViewModel = SettingsViewModel()) {
+        readingDirection = settings.readingDirection
+        zoomMode = settings.zoomMode
+    }
+
     func openBook(_ book: Book, modelContext: ModelContext) async {
+        openRequestID += 1
+        let requestID = openRequestID
         loadingTask?.cancel()
         loadingTask = nil
 
@@ -56,6 +73,7 @@ final class ReaderViewModel {
         }
 
         await imageCache.clear()
+        guard isCurrentOpen(requestID) else { return }
         self.modelContext = modelContext
         currentBook = book
         currentPage = book.progress?.currentPage ?? 0
@@ -63,9 +81,24 @@ final class ReaderViewModel {
         errorMessage = nil
 
         do {
-            let url = try await resolveBookURL(book)
+            let (url, scopedURL) = try await resolveBookURL(book)
+            guard isCurrentOpen(requestID) else {
+                if let scopedURL {
+                    await SecurityScopedBookmarkManager.shared.stopAccessing(url: scopedURL)
+                }
+                return
+            }
+            accessingURL = scopedURL
 
-            provider = try ArchiveService.provider(for: url)
+            // A coordinated read can wait for an iCloud download, so open the book off MainActor
+            let opened = try await Task.detached { try ArchiveService.provider(for: url) }.value
+            // The detached open ignores cancellation. A newer open or closeBook has already released
+            // this request's access, so a stale result is only closed.
+            guard isCurrentOpen(requestID) else {
+                opened.close()
+                return
+            }
+            provider = opened
             totalPages = provider?.pageCount ?? 0
 
             if totalPages == 0 {
@@ -81,6 +114,7 @@ final class ReaderViewModel {
 
             await loadCurrentPage()
         } catch {
+            guard isCurrentOpen(requestID) else { return }
             if let url = accessingURL {
                 accessingURL = nil
                 await SecurityScopedBookmarkManager.shared.stopAccessing(url: url)
@@ -91,19 +125,25 @@ final class ReaderViewModel {
         isLoading = false
     }
 
-    private func resolveBookURL(_ book: Book) async throws -> URL {
+    /// False once a newer openBook, closeBook or cancellation has superseded the request.
+    private func isCurrentOpen(_ requestID: Int) -> Bool {
+        requestID == openRequestID && !Task.isCancelled
+    }
+
+    /// Returns the URL to read and, when a bookmark was resolved, the URL whose security scope is
+    /// now held and must be released.
+    private func resolveBookURL(_ book: Book) async throws -> (url: URL, scopedURL: URL?) {
         var url = URL(fileURLWithPath: book.filePath)
+        var scopedURL: URL?
 
         if let bookmarkData = book.bookmarkData {
             guard let resolved = await SecurityScopedBookmarkManager.shared.resolveAndAccess(
                 bookmarkData: bookmarkData
             ) else {
                 logger.warning("Failed to resolve bookmark for \(book.filePath)")
-                errorMessage = "ファイルへのアクセス権が失われました。再度ファイルをライブラリに追加してください。"
-                isLoading = false
-                throw MangaViewerError.archiveNotFound
+                throw MangaViewerError.accessLost
             }
-            accessingURL = resolved.url
+            scopedURL = resolved.url
             url = resolved.url
             if resolved.isStale {
                 book.bookmarkData = resolved.bookmarkData
@@ -114,7 +154,7 @@ final class ReaderViewModel {
         } else {
             do {
                 book.bookmarkData = try url.bookmarkData(
-                    options: .withSecurityScope,
+                    options: BookmarkOptions.creation,
                     includingResourceValuesForKeys: nil,
                     relativeTo: nil
                 )
@@ -123,7 +163,7 @@ final class ReaderViewModel {
             }
         }
 
-        return url
+        return (url, scopedURL)
     }
 
     func openProvider(_ pageProvider: PageProvider, title _: String) async {
@@ -139,6 +179,7 @@ final class ReaderViewModel {
     }
 
     func closeBook() {
+        openRequestID += 1
         loadingTask?.cancel()
         loadingTask = nil
         toastTask?.cancel()
@@ -197,6 +238,12 @@ final class ReaderViewModel {
     func setReadingDirection(_ direction: ReadingDirection) {
         guard direction != readingDirection else { return }
         readingDirection = direction
+        scheduleLoadPage()
+    }
+
+    func setPrefersSinglePage(_ single: Bool) {
+        guard single != prefersSinglePage else { return }
+        prefersSinglePage = single
         scheduleLoadPage()
     }
 
@@ -285,6 +332,8 @@ final class ReaderViewModel {
         guard let provider else { return }
 
         isLoading = true
+        // A page whose placeholder failed to render left an error; this load sets it again if needed
+        errorMessage = nil
 
         await loadSpreadImages()
 
@@ -297,12 +346,12 @@ final class ReaderViewModel {
         isLoading = false
     }
 
-    private func isLandscapeImage(_ image: NSImage) -> Bool {
+    private func isLandscapeImage(_ image: PlatformImage) -> Bool {
         let size = image.size
         return size.width > size.height * 1.2
     }
 
-    private func loadImageForPage(_ index: Int) async -> NSImage? {
+    private func loadImageForPage(_ index: Int) async -> PlatformImage? {
         guard let provider, index >= 0, index < totalPages else { return nil }
         if let cached = imageCache.image(for: index) {
             return cached
@@ -335,8 +384,7 @@ final class ReaderViewModel {
 
         isCurrentPageWide = false
 
-        let secondaryIndex = currentPage + 1
-        let secondaryImage = await loadImageForPage(secondaryIndex)
+        let secondaryImage = prefersSinglePage ? nil : await loadImageForPage(currentPage + 1)
         guard !Task.isCancelled else { return }
 
         // If the secondary image is also wide, or there is no secondary page,
@@ -364,35 +412,27 @@ final class ReaderViewModel {
         }
     }
 
-    private func createErrorPlaceholder(page: Int, error: Error) -> NSImage {
-        let size = NSSize(width: 800, height: 1200)
-        return NSImage(size: size, flipped: true) { drawRect in
-            NSColor.windowBackgroundColor.setFill()
-            NSBezierPath.fill(drawRect)
-
-            let iconRect = NSRect(x: 350, y: 450, width: 100, height: 100)
-            if let symbol = NSImage(
-                systemSymbolName: "exclamationmark.triangle",
-                accessibilityDescription: nil
-            ) {
-                symbol.draw(in: iconRect)
-            }
-
-            let style = NSMutableParagraphStyle()
-            style.alignment = .center
-            let attrs: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: 14),
-                .foregroundColor: NSColor.secondaryLabelColor,
-                .paragraphStyle: style
-            ]
-            let text = "Page \(page + 1)\n\(error.localizedDescription)"
-            text.draw(in: NSRect(x: 50, y: 560, width: 700, height: 80), withAttributes: attrs)
-
-            return true
+    private func createErrorPlaceholder(page: Int, error: Error) -> PlatformImage {
+        let placeholder = VStack(spacing: 24) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 80))
+            Text("Page \(page + 1)\n\(error.localizedDescription)")
+                .font(.system(size: 14))
+                .multilineTextAlignment(.center)
         }
+        .foregroundStyle(.secondary)
+        .frame(width: 800, height: 1200)
+        .background(Color.readerBackground)
+
+        guard let cgImage = renderPlaceholder(AnyView(placeholder)) else {
+            // Without a placeholder image the page would be blank; show the error as text instead
+            errorMessage = "Page \(page + 1): \(error.localizedDescription)"
+            return PlatformImage()
+        }
+        return PlatformImage.make(cgImage: cgImage)
     }
 
-    private func applyFilters(to image: NSImage) -> NSImage {
+    private func applyFilters(to image: PlatformImage) -> PlatformImage {
         ImageFilterApplier.apply(filterSettings, to: image)
     }
 

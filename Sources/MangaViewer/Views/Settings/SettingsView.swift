@@ -1,9 +1,30 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @State private var viewModel = SettingsViewModel()
+    @State private var showFolderImporter = false
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        #if os(macOS)
+            tabs
+                .frame(width: 450, height: 300)
+        #else
+            NavigationStack {
+                tabs
+                    .navigationTitle("Settings")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { dismiss() }
+                        }
+                    }
+            }
+        #endif
+    }
+
+    private var tabs: some View {
         TabView {
             generalSettings
                 .tabItem {
@@ -20,7 +41,21 @@ struct SettingsView: View {
                     Label("Library", systemImage: "folder")
                 }
         }
-        .frame(width: 450, height: 300)
+        .fileImporter(isPresented: $showFolderImporter, allowedContentTypes: [.folder]) { result in
+            switch result {
+            case let .success(url):
+                Task {
+                    if await !viewModel.addWatchedFolder(url) {
+                        AppState.shared.openError =
+                            "Could not keep access to \(url.lastPathComponent). Choose the folder again."
+                        AppState.shared.showError = true
+                    }
+                }
+            case let .failure(error):
+                AppState.shared.openError = error.localizedDescription
+                AppState.shared.showError = true
+            }
+        }
     }
 
     private var generalSettings: some View {
@@ -28,7 +63,7 @@ struct SettingsView: View {
             Section {
                 Text("MangaViewer")
                     .font(.headline)
-                Text("A manga viewer for macOS")
+                Text("A manga viewer for macOS and iPad")
                     .foregroundStyle(.secondary)
             }
         }
@@ -79,25 +114,12 @@ struct SettingsView: View {
                 }
 
                 Button("Add Folder...") {
-                    addWatchedFolder()
+                    showFolderImporter = true
                 }
             }
         }
         .formStyle(.grouped)
         .padding()
-    }
-
-    private func addWatchedFolder() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-
-        if panel.runModal() == .OK, let url = panel.url {
-            Task {
-                await viewModel.addWatchedFolder(url)
-            }
-        }
     }
 }
 

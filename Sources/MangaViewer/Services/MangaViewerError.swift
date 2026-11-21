@@ -2,6 +2,7 @@ import Foundation
 
 enum MangaViewerError: LocalizedError {
     case archiveNotFound
+    case accessLost
     case unsupportedFormat
     case extractionFailed(String)
     case invalidImageData
@@ -11,6 +12,8 @@ enum MangaViewerError: LocalizedError {
         switch self {
         case .archiveNotFound:
             return "Archive file not found"
+        case .accessLost:
+            return "Access to this book was lost. Add it to the library again."
         case .unsupportedFormat:
             return "Unsupported file format"
         case let .extractionFailed(message):

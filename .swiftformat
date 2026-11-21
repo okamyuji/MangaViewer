@@ -14,3 +14,6 @@
 --importgrouping testable-bottom
 --commas inline
 --trimwhitespace always
+
+# Local build output, including the checked-out packages of iPad release builds
+--exclude build

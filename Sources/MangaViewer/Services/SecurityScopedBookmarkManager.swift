@@ -5,26 +5,53 @@ private let logger = Logger(
     subsystem: Bundle.main.bundleIdentifier ?? "MangaViewer", category: "BookmarkManager"
 )
 
+/// iOS has no `.withSecurityScope`; a plain bookmark of a document-picker URL resolves to a
+/// security-scoped URL there (Apple: "Providing access to directories").
+enum BookmarkOptions {
+    #if os(macOS)
+        static let creation: URL.BookmarkCreationOptions = .withSecurityScope
+        static let resolution: URL.BookmarkResolutionOptions = .withSecurityScope
+    #else
+        static let creation: URL.BookmarkCreationOptions = .minimalBookmark
+        static let resolution: URL.BookmarkResolutionOptions = []
+    #endif
+}
+
 actor SecurityScopedBookmarkManager {
-    static let shared = SecurityScopedBookmarkManager()
+    static let shared = SecurityScopedBookmarkManager(store: makeStore())
 
     private let bookmarkKey = "securityScopedBookmarks"
+    private let store: UserDefaults
     private var activeURLs: Set<URL> = []
 
-    private init() {}
+    private init(store: UserDefaults) {
+        self.store = store
+    }
 
-    func saveBookmark(for url: URL) {
+    /// Unit tests run inside the app, so they get an emptied store of their own instead of
+    /// adding temporary folders to the bookmarks the real app uses.
+    private static func makeStore() -> UserDefaults {
+        guard AppEnvironment.isRunningUnitTests else { return .standard }
+        let suiteName = "MangaViewer.UnitTests"
+        UserDefaults().removePersistentDomain(forName: suiteName)
+        return UserDefaults(suiteName: suiteName) ?? .standard
+    }
+
+    @discardableResult
+    func saveBookmark(for url: URL) -> Bool {
         do {
             let bookmarkData = try url.bookmarkData(
-                options: .withSecurityScope,
+                options: BookmarkOptions.creation,
                 includingResourceValuesForKeys: nil,
                 relativeTo: nil
             )
             var bookmarks = loadAllBookmarkData()
             bookmarks[url.path] = bookmarkData
             saveAllBookmarkData(bookmarks)
+            return true
         } catch {
             logger.error("Failed to save bookmark for \(url.path): \(error)")
+            return false
         }
     }
 
@@ -42,7 +69,7 @@ actor SecurityScopedBookmarkManager {
         do {
             url = try URL(
                 resolvingBookmarkData: bookmarkData,
-                options: .withSecurityScope,
+                options: BookmarkOptions.resolution,
                 relativeTo: nil,
                 bookmarkDataIsStale: &isStale
             )
@@ -61,7 +88,7 @@ actor SecurityScopedBookmarkManager {
         if isStale {
             do {
                 updatedData = try url.bookmarkData(
-                    options: .withSecurityScope,
+                    options: BookmarkOptions.creation,
                     includingResourceValuesForKeys: nil,
                     relativeTo: nil
                 )
@@ -119,7 +146,7 @@ actor SecurityScopedBookmarkManager {
     // MARK: - Private
 
     private func loadAllBookmarkData() -> [String: Data] {
-        guard let data = UserDefaults.standard.data(forKey: bookmarkKey) else {
+        guard let data = store.data(forKey: bookmarkKey) else {
             return [:]
         }
         do {
@@ -133,7 +160,7 @@ actor SecurityScopedBookmarkManager {
     private func saveAllBookmarkData(_ bookmarks: [String: Data]) {
         do {
             let data = try JSONEncoder().encode(bookmarks)
-            UserDefaults.standard.set(data, forKey: bookmarkKey)
+            store.set(data, forKey: bookmarkKey)
         } catch {
             logger.error("Failed to save bookmarks: \(error)")
         }

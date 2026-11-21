@@ -1,8 +1,8 @@
 import SwiftUI
 
 struct SpreadView: View {
-    let leftImage: NSImage?
-    let rightImage: NSImage?
+    let leftImage: PlatformImage?
+    let rightImage: PlatformImage?
     let readingDirection: ReadingDirection
     let zoomMode: ZoomMode
     @Binding var zoomScale: CGFloat
@@ -24,11 +24,11 @@ struct SpreadView: View {
                 }
             }
         }
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(Color.readerBackground)
     }
 
     @ViewBuilder
-    private func pageView(for image: NSImage?, width: CGFloat) -> some View {
+    private func pageView(for image: PlatformImage?, width: CGFloat) -> some View {
         if let image {
             ZoomableImageView(
                 image: image,
@@ -41,14 +41,4 @@ struct SpreadView: View {
                 .frame(width: width)
         }
     }
-}
-
-#Preview {
-    SpreadView(
-        leftImage: NSImage(systemSymbolName: "photo", accessibilityDescription: nil),
-        rightImage: NSImage(systemSymbolName: "photo", accessibilityDescription: nil),
-        readingDirection: .rightToLeft,
-        zoomMode: .fitPage,
-        zoomScale: .constant(1.0)
-    )
 }

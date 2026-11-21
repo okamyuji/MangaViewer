@@ -3,6 +3,7 @@ options:
   bundleIdPrefix: work.okamyuji
   deploymentTarget:
     macOS: "14.0"
+    iOS: "17.0"
   xcodeVersion: "16.0"
   generateEmptyDirectories: false
 
@@ -57,3 +58,79 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: work.okamyuji.mangaviewer.tests
         GENERATE_INFOPLIST_FILE: true
+
+  MangaViewer-iPad:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources/MangaViewer
+      - path: Resources
+    dependencies:
+      - package: ZIPFoundation
+      - package: Unrar.swift
+        product: Unrar
+    configFiles:
+      Debug: Local.xcconfig
+      Release: Local.xcconfig
+    settings:
+      base:
+        # Same module name as the macOS app so the shared tests can `@testable import MangaViewer`
+        PRODUCT_NAME: MangaViewer
+        PRODUCT_MODULE_NAME: MangaViewer
+        PRODUCT_BUNDLE_IDENTIFIER: work.okamyuji.mangaviewer
+        INFOPLIST_FILE: Info-iPad.plist
+        TARGETED_DEVICE_FAMILY: "2"
+        IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+        SWIFT_STRICT_CONCURRENCY: complete
+        ENABLE_UPCOMING_FEATURE_STRICT_CONCURRENCY: true
+        GENERATE_INFOPLIST_FILE: false
+        SWIFT_VERSION: "6"
+        CODE_SIGN_STYLE: Automatic
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+      configs:
+        Debug:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
+        Release:
+          SWIFT_OPTIMIZATION_LEVEL: -O
+
+  MangaViewerTests-iPad:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests/MangaViewerTests
+    dependencies:
+      - target: MangaViewer-iPad
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: work.okamyuji.mangaviewer.tests
+        GENERATE_INFOPLIST_FILE: true
+        TARGETED_DEVICE_FAMILY: "2"
+        SWIFT_VERSION: "6"
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/MangaViewer.app/MangaViewer
+        BUNDLE_LOADER: $(TEST_HOST)
+
+  MangaViewerUITests-iPad:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests/MangaViewerUITests
+    dependencies:
+      - target: MangaViewer-iPad
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: work.okamyuji.mangaviewer.uitests
+        GENERATE_INFOPLIST_FILE: true
+        TARGETED_DEVICE_FAMILY: "2"
+        SWIFT_VERSION: "6"
+        TEST_TARGET_NAME: MangaViewer-iPad
+
+schemes:
+  MangaViewer-iPad:
+    build:
+      targets:
+        MangaViewer-iPad: all
+    test:
+      config: Debug
+      targets:
+        - MangaViewerTests-iPad
+        - MangaViewerUITests-iPad

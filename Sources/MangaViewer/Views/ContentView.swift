@@ -9,11 +9,15 @@ struct ContentView: View {
     @State private var selectedBook: Book?
     @State private var directOpenProvider: PageProvider?
     @State private var directOpenTitle: String?
-    @State private var directOpenThumbnail: NSImage?
     @State private var directOpenAccessingURL: URL?
     @State private var isLoading = false
     @State private var loadingError: String?
-    @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
+    #if os(iOS)
+        /// .automatic hides the sidebar on a portrait iPad, and with it the book list, Add Books and Settings
+        @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    #else
+        @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
+    #endif
     @State private var openFileTask: Task<Void, Never>?
     @State private var openRequestID: Int = 0
 
@@ -29,7 +33,6 @@ struct ContentView: View {
                             directOpenProvider?.close()
                             directOpenProvider = nil
                             directOpenTitle = nil
-                            directOpenThumbnail = nil
                             if let url = directOpenAccessingURL {
                                 url.stopAccessingSecurityScopedResource()
                                 directOpenAccessingURL = nil
@@ -37,16 +40,25 @@ struct ContentView: View {
                         }
                     )
                 }
+                #if os(macOS)
                 .frame(minWidth: 800, minHeight: 600)
+                #endif
             } else {
                 NavigationSplitView(columnVisibility: $columnVisibility) {
-                    SidebarView()
+                    SidebarView(columnVisibility: $columnVisibility)
+                    #if os(iOS)
+                        // Narrower than this, the sidebar bar folds Settings and Add Books into an overflow menu
+                        .navigationSplitViewColumnWidth(min: 300, ideal: 320, max: 400)
+                    #else
                         .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 300)
+                    #endif
                 } detail: {
                     Text("Select a book to read")
                         .foregroundStyle(.secondary)
                 }
+                #if os(macOS)
                 .frame(minWidth: 800, minHeight: 600)
+                #endif
             }
         }
         .overlay {
@@ -84,6 +96,11 @@ struct ContentView: View {
         } message: {
             Text(loadingError ?? appState.openError ?? "Unknown error")
         }
+        #if DEBUG
+        .task {
+            openSampleBookIfRequested()
+        }
+        #endif
         .onChange(of: appState.fileToOpen) { _, newURL in
             if let url = newURL {
                 openFileDirectly(url)
@@ -91,6 +108,19 @@ struct ContentView: View {
             }
         }
     }
+
+    #if DEBUG
+        private func openSampleBookIfRequested() {
+            guard ProcessInfo.processInfo.arguments.contains(SampleBook.launchArgument) else { return }
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("UITestSample.cbz")
+            do {
+                try SampleBook.writeCBZ(to: url, pageCount: 4)
+                appState.openFile(url)
+            } catch {
+                loadingError = error.localizedDescription
+            }
+        }
+    #endif
 
     private func openFileDirectly(_ url: URL) {
         // Cancel any in-flight open task
@@ -114,22 +144,13 @@ struct ContentView: View {
 
         // Outer Task inherits MainActor; inner detached task avoids capturing self
         openFileTask = Task {
-            let result: Result<(PageProvider, NSImage?), Error> = await Task.detached {
-                do {
-                    let provider = try ArchiveService.provider(for: url)
-                    var thumbnail: NSImage?
-                    if provider.pageCount > 0 {
-                        thumbnail = try? await provider.image(at: 0)
-                    }
-                    return .success((provider, thumbnail))
-                } catch {
-                    return .failure(error)
-                }
+            let result: Result<PageProvider, Error> = await Task.detached {
+                Result { try ArchiveService.provider(for: url) }
             }.value
 
             // Back on MainActor - check cancellation and stale request
             guard !Task.isCancelled, openRequestID == requestID else {
-                if case let .success((provider, _)) = result {
+                if case let .success(provider) = result {
                     provider.close()
                 }
                 if accessing {
@@ -139,10 +160,9 @@ struct ContentView: View {
             }
 
             switch result {
-            case let .success((provider, thumbnail)):
+            case let .success(provider):
                 directOpenProvider = provider
                 directOpenTitle = title
-                directOpenThumbnail = thumbnail
                 if accessing {
                     directOpenAccessingURL = url
                 }

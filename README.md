@@ -1,15 +1,15 @@
 # MangaViewer
 
-macOS向けSwiftUI製漫画ビューワーアプリケーション。Mac App Store対応。
+macOSとiPad向けのSwiftUI製漫画ビューワーアプリケーションです。macOS版はMac App Storeに対応しています。
 
 ## 概要
 
-- **対応OS**: macOS 14 (Sonoma) 以降
-- **フレームワーク**: SwiftUI, SwiftData
-- **アーキテクチャ**: Modern MVVM with @Observable
-- **Swift**: 6.0（Strict Concurrency有効）
-- **App Sandbox**: 対応済み（セキュリティスコープブックマークによるファイルアクセス永続化）
-- **バンドルID**: `work.okamyuji.mangaviewer`
+- 対応OS macOS 14（Sonoma）以降、iPadOS 17以降（iPadのみ）
+- フレームワーク SwiftUI、SwiftData
+- アーキテクチャ `@Observable`を使ったMVVM
+- Swift 6.0（Strict Concurrency有効）
+- App Sandbox macOS版で有効（セキュリティスコープブックマークでファイルアクセスを保持）
+- バンドルID `work.okamyuji.mangaviewer`
 
 ## 機能
 
@@ -21,18 +21,19 @@ macOS向けSwiftUI製漫画ビューワーアプリケーション。Mac App Sto
 
 ### リーダー機能
 
-- 単ページ / 見開き表示切替
+- 見開き表示（横長のページと縦向きのiPadは1ページ表示）
 - 読み方向切替（左→右 / 右→左）
 - ズームモード（ページフィット / 幅フィット / 高さフィット / 原寸 / 自由ズーム）
-- キーボードナビゲーション
+- キーボードナビゲーション（iPadは外付けキーボード）
+- iPadのタッチ操作（タップ、スワイプ、縦向きで1ページ表示）
 - 全画面モード
 - しおり機能
 - 画像フィルタ（明るさ / コントラスト / セピア / グレースケール）
 
 ### ライブラリ機能
 
-- フォルダ監視による自動検知（DispatchSource）
-- サムネイル一覧表示
+- フォルダ監視による自動検知（macOSはDispatchSource、iPadは起動時、フォルダの追加時、引き下げ操作で読み直し）。「本を追加」で選んだフォルダも監視フォルダに登録します
+- サイドバーのサムネイル付き一覧
 - 既読管理
 - タグ付け
 - 検索・ソート
@@ -66,7 +67,8 @@ flowchart TB
 MangaViewer/
 ├── Package.swift                    # SPMパッケージ定義
 ├── project.yml                      # XcodeGen設定
-├── Info.plist                       # アプリ情報
+├── Info.plist                       # macOS版のアプリ情報
+├── Info-iPad.plist                  # iPad版のアプリ情報
 ├── MangaViewer.entitlements         # App Sandboxエンタイトルメント
 ├── Local.xcconfig.template          # ビルド設定テンプレート
 │
@@ -101,27 +103,32 @@ MangaViewer/
 │   ├── Views/
 │   │   ├── ContentView.swift
 │   │   ├── Library/
-│   │   │   ├── LibraryView.swift
-│   │   │   ├── BookGridItem.swift
 │   │   │   ├── SidebarView.swift
-│   │   │   └── TagSidebar.swift
+│   │   │   └── AddTagSheet.swift
 │   │   ├── Reader/
 │   │   │   ├── ReaderView.swift
 │   │   │   ├── SpreadView.swift
 │   │   │   ├── ZoomableImageView.swift
 │   │   │   ├── ReaderToolbar.swift
-│   │   │   └── KeyboardHandlerView.swift
+│   │   │   ├── KeyboardHandlerView.swift  # macOSのキー入力
+│   │   │   └── TouchReaderControls.swift  # iPadのタップとスワイプ
 │   │   └── Settings/
 │   │       └── SettingsView.swift
 │   │
 │   └── Utilities/
 │       ├── Constants.swift
 │       ├── ImageFilter.swift
+│       ├── PlatformImage.swift      # NSImageとUIImageの共通化
+│       ├── ReaderCommand.swift      # キー入力とリーダー操作の対応
+│       ├── ReaderGesture.swift      # タップとスワイプの判定
+│       ├── SampleBook.swift         # テスト用サンプル本の生成（DEBUGのみ）
 │       ├── ReadingDirection.swift
 │       ├── SortOrder.swift
 │       └── ZoomMode.swift
 │
-├── Tests/MangaViewerTests/
+├── Tests/MangaViewerTests/          # macOSとiPadで共有する単体テスト
+├── UITests/MangaViewerUITests/      # iPadシミュレータのUIテスト
+├── docs/adr/                        # 設計判断の記録
 │
 ├── Resources/
 │   ├── Assets.xcassets/             # アプリアイコン
@@ -189,6 +196,30 @@ cp Local.xcconfig.template Local.xcconfig
 # DEVELOPMENT_TEAMを自分のチームIDに変更
 # Local.xcconfigはgitignoreされています
 ```
+
+### iPadへのインストール
+
+1. `Local.xcconfig`の`DEVELOPMENT_TEAM`に、Apple Developer Programに登録したチームIDを書きます。
+2. 自分のチームでビルドするときは、`project.yml`の`PRODUCT_BUNDLE_IDENTIFIER`をすべて自分のIDに変えます。同じApp IDは別のチームで登録できないためです。アプリ本体（`MangaViewer`と`MangaViewer-iPad`）と試験（`MangaViewerTests`、`MangaViewerTests-iPad`、`MangaViewerUITests-iPad`）で、同じ接頭辞を使います。
+3. `xcodegen generate`でプロジェクトを生成し、Xcodeで`MangaViewer-iPad`スキームを選びます。
+4. iPadをMacに接続して実行先に選び、実行します。
+
+Xcodeを開かずにコマンドで入れる場合は、次のとおりです。iPadの「設定」>「プライバシーとセキュリティ」で「デベロッパモード」を有効にしておきます。
+
+```bash
+# 接続したiPadの識別子を調べる
+xcrun devicectl list devices
+
+# そのiPad向けのReleaseビルド。iPadを開発者アカウントに登録し、署名用のプロファイルを作成・更新します
+xcodebuild -project MangaViewer.xcodeproj -scheme MangaViewer-iPad -configuration Release \
+  -destination "platform=iOS,id=<識別子>" -derivedDataPath build/ipad \
+  -allowProvisioningUpdates -allowProvisioningDeviceRegistration build
+
+# インストール
+xcrun devicectl device install app --device <識別子> build/ipad/Build/Products/Release-iphoneos/MangaViewer.app
+```
+
+本は「ファイル」アプリの場所をそのまま参照します。ライブラリと読書の進み具合は端末ごとに保存され、macOS版とは同期しません。
 
 ### Xcodeプロジェクト生成
 
@@ -266,8 +297,11 @@ swiftformat . --dryrun
 # 依存関係インストール
 bundle install
 
-# テスト実行
+# macOSのテスト実行
 bundle exec fastlane test
+
+# iPadシミュレータでの単体テストとUIテスト
+bundle exec fastlane ipad_test
 
 # リリースビルド
 bundle exec fastlane build
@@ -305,43 +339,51 @@ Mac App Store配布のためApp Sandboxに対応しています。
 | キー | 用途 |
 | ---- | ---- |
 | `com.apple.security.app-sandbox` | App Sandbox有効化 |
-| `com.apple.security.files.user-selected.read-write` | NSOpenPanelで選択したファイルへのアクセス |
+| `com.apple.security.files.user-selected.read-write` | ファイル選択ダイアログで選んだファイルへのアクセス |
 | `com.apple.security.files.bookmarks.app-scope` | セキュリティスコープブックマークで再起動後もアクセス維持 |
 
 ### セキュリティスコープブックマーク
 
-`SecurityScopedBookmarkManager`（actor）がブックマークの保存・復元・アクセス管理を担当。ユーザーが選択したファイル/フォルダへのアクセスをアプリ再起動後も維持します。
+`SecurityScopedBookmarkManager`（actor）がブックマークの保存・復元・アクセス管理を担当。ユーザーが選択したファイル/フォルダへのアクセスをアプリ再起動後も維持します。iPadOSには`.withSecurityScope`がないため、`BookmarkOptions`がプラットフォームごとの指定を切り替えます。
 
 ## キーボードショートカット
+
+macOSとiPadの外付けキーボードで同じキーを使います。macOSはキーの位置をUS配列で判定し、iPadは入力された文字で判定します。
 
 | キー | 動作 |
 | ---- | ---- |
 | `←` / `→` | 前/次ページ（読み方向対応） |
 | `Space` | 次ページ |
-| `Shift+Space` | 前ページ |
 | `F` | 全画面切替 |
-| `1` | 単ページモード |
-| `2` | 見開きモード |
-| `+` / `-` | ズームイン/アウト |
+| `=` / `-` | ズームイン/アウト |
 | `0` | フィットモードに戻す |
-| `B` | ブックマーク追加 |
+| `B` | しおりの追加/削除 |
+| `Esc` | リーダーを閉じる |
+
+## iPadのタッチ操作
+
+| 操作 | 右綴じ | 左綴じ |
+| ---- | ------ | ------ |
+| 画面の左3分の1をタップ | 次ページ | 前ページ |
+| 画面の右3分の1をタップ | 前ページ | 次ページ |
+| 右方向へスワイプ | 次ページ | 前ページ |
+| 左方向へスワイプ | 前ページ | 次ページ |
+| 中央をタップ | ツールバーの表示切替 | ツールバーの表示切替 |
+
+iPadを縦にすると1ページずつ、横にすると見開きで表示します。ページが画面からはみ出している向き（ズーム中や幅フィットの縦方向）のドラッグは、画像の移動に使います。
 
 ## 設定項目
 
 ### 読書設定
 
 - デフォルト読み方向（左→右 / 右→左）
-- デフォルト表示モード（単ページ / 見開き）
 - デフォルトズームモード
 
 ### ライブラリ設定
 
 - 監視フォルダ一覧
-- サムネイルサイズ
 
-### 表示設定
-
-- ダークモード（システム追従 / 常にライト / 常にダーク）
+macOSでは設定ウィンドウ、iPadではサイドバーの歯車ボタンから開きます。
 
 ## 画像キャッシュ戦略
 

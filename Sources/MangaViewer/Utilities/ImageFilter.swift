@@ -1,4 +1,3 @@
-import AppKit
 import CoreImage
 import CoreImage.CIFilterBuiltins
 
@@ -18,8 +17,8 @@ struct ImageFilterSettings: Equatable {
 enum ImageFilterApplier {
     private static let context = CIContext()
 
-    static func apply(_ settings: ImageFilterSettings, to image: NSImage) -> NSImage {
-        guard !settings.isDefault, let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+    static func apply(_ settings: ImageFilterSettings, to image: PlatformImage) -> PlatformImage {
+        guard !settings.isDefault, let cgImage = image.cgImageValue else {
             return image
         }
 
@@ -56,6 +55,6 @@ enum ImageFilterApplier {
             return image
         }
 
-        return NSImage(cgImage: outputCGImage, size: image.size)
+        return PlatformImage.make(cgImage: outputCGImage, matching: image)
     }
 }

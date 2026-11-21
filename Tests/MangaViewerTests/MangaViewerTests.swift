@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import Testing
+import ZIPFoundation
 @testable import MangaViewer
 
 @Suite("ImageFileFilter Tests")
@@ -95,11 +96,34 @@ struct ArchiveServiceTests {
     }
 }
 
+@Suite("ZipExtractor Tests")
+struct ZipExtractorTests {
+    @Test("an archive that stores the same page path twice opens instead of crashing")
+    func duplicateEntryPaths() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).cbz")
+        let png = TestImages.pngData(width: 4, height: 6)
+        let archive = try Archive(url: url, accessMode: .create)
+        for _ in 0 ..< 2 {
+            try archive.addEntry(with: "001.png", type: .file, uncompressedSize: Int64(png.count)) { position, size in
+                png.subdata(in: Int(position) ..< Int(position) + size)
+            }
+        }
+
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let extractor = try ZipExtractor(url: url)
+
+        #expect(extractor.pageCount == 1)
+        #expect(try await extractor.image(at: 0).pixelSize == CGSize(width: 4, height: 6))
+    }
+}
+
 @Suite("MangaViewerError Tests")
 struct MangaViewerErrorTests {
     @Test("Error descriptions are provided")
     func errorDescriptions() {
         #expect(MangaViewerError.archiveNotFound.errorDescription != nil)
+        #expect(MangaViewerError.accessLost.errorDescription?.contains("Add it to the library again") == true)
         #expect(MangaViewerError.unsupportedFormat.errorDescription != nil)
         #expect(MangaViewerError.extractionFailed("test").errorDescription?.contains("test") == true)
         #expect(MangaViewerError.invalidImageData.errorDescription != nil)
@@ -182,12 +206,8 @@ struct ImageFilterSettingsTests {
 @Suite("ImageFilterApplier Tests")
 @MainActor
 struct ImageFilterApplierTests {
-    private func createTestImage() -> NSImage {
-        NSImage(size: NSSize(width: 100, height: 100), flipped: false) { rect in
-            NSColor.red.setFill()
-            NSBezierPath.fill(rect)
-            return true
-        }
+    private func createTestImage() -> PlatformImage {
+        TestImages.solid(width: 100, height: 100)
     }
 
     @Test("Default settings return original image unchanged")
@@ -236,6 +256,23 @@ struct ImageFilterApplierTests {
         #expect(result !== original)
         #expect(result.size == original.size)
     }
+
+    @Test("filtered image keeps the point size of a high-density original")
+    func filterKeepsPointSize() {
+        let pixels = TestImages.solidCGImage(width: 100, height: 100)
+        #if os(macOS)
+            let original = NSImage(cgImage: pixels, size: CGSize(width: 50, height: 50))
+        #else
+            let original = UIImage(cgImage: pixels, scale: 2, orientation: .up)
+        #endif
+        var settings = ImageFilterSettings()
+        settings.sepia = 0.8
+
+        let result = ImageFilterApplier.apply(settings, to: original)
+
+        #expect(result.size == CGSize(width: 50, height: 50))
+        #expect(result.pixelSize == CGSize(width: 100, height: 100))
+    }
 }
 
 @Suite("ReaderViewModel Tests")
@@ -243,7 +280,7 @@ struct ReaderViewModelTests {
     @Test("setReadingDirection changes direction")
     @MainActor
     func setReadingDirection() {
-        let vm = ReaderViewModel()
+        let vm = makeIsolatedReader()
         #expect(vm.readingDirection == .rightToLeft)
 
         vm.setReadingDirection(.leftToRight)
@@ -256,7 +293,7 @@ struct ReaderViewModelTests {
     @Test("setReadingDirection does not change if same direction")
     @MainActor
     func setReadingDirectionSame() {
-        let vm = ReaderViewModel()
+        let vm = makeIsolatedReader()
         vm.setReadingDirection(.rightToLeft)
         #expect(vm.readingDirection == .rightToLeft)
     }
@@ -264,21 +301,21 @@ struct ReaderViewModelTests {
     @Test("canBookmark is false when currentBook is nil")
     @MainActor
     func canBookmarkWithoutBook() {
-        let vm = ReaderViewModel()
+        let vm = makeIsolatedReader()
         #expect(vm.canBookmark == false)
     }
 
     @Test("hasBookmarkOnCurrentPage is false when currentBook is nil")
     @MainActor
     func hasBookmarkWithoutBook() {
-        let vm = ReaderViewModel()
+        let vm = makeIsolatedReader()
         #expect(vm.hasBookmarkOnCurrentPage == false)
     }
 
     @Test("addBookmark does nothing when currentBook is nil")
     @MainActor
     func addBookmarkWithoutBook() {
-        let vm = ReaderViewModel()
+        let vm = makeIsolatedReader()
         vm.addBookmark()
         #expect(vm.showBookmarkToast == false)
     }
@@ -286,7 +323,7 @@ struct ReaderViewModelTests {
     @Test("toggleBookmark does nothing when currentBook is nil")
     @MainActor
     func toggleBookmarkWithoutBook() {
-        let vm = ReaderViewModel()
+        let vm = makeIsolatedReader()
         vm.toggleBookmark()
         #expect(vm.showBookmarkToast == false)
     }
@@ -294,14 +331,14 @@ struct ReaderViewModelTests {
     @Test("sortedBookmarks is empty when currentBook is nil")
     @MainActor
     func sortedBookmarksWithoutBook() {
-        let vm = ReaderViewModel()
+        let vm = makeIsolatedReader()
         #expect(vm.sortedBookmarks.isEmpty)
     }
 
     @Test("page navigation respects bounds")
     @MainActor
     func pageNavigationBounds() {
-        let vm = ReaderViewModel()
+        let vm = makeIsolatedReader()
         vm.totalPages = 5
         vm.currentPage = 0
 
@@ -318,7 +355,7 @@ struct ReaderViewModelTests {
     @Test("zoom in and out change scale")
     @MainActor
     func zoomInOut() {
-        let vm = ReaderViewModel()
+        let vm = makeIsolatedReader()
         let initialScale = vm.zoomScale
 
         vm.zoomIn()
@@ -336,7 +373,7 @@ struct ReaderViewModelTests {
     @Test("isCurrentPageWide defaults to false")
     @MainActor
     func isCurrentPageWideDefault() {
-        let vm = ReaderViewModel()
+        let vm = makeIsolatedReader()
         #expect(vm.isCurrentPageWide == false)
     }
 }
@@ -353,6 +390,26 @@ struct ColorExtensionTests {
     func colorFromHexNoHash() {
         let color = Color(hex: "00FF00")
         #expect(color != nil)
+    }
+
+    @Test("toHex round-trips a color created from hex")
+    func toHexRoundTrip() throws {
+        let color = try #require(Color(hex: "#FF8000"))
+        #expect(color.toHex() == "#FF8000")
+    }
+
+    @Test("toHex round-trips every 8-bit channel value")
+    func toHexRoundTripsEveryChannelValue() {
+        for value in 0 ... 255 {
+            let hex = String(format: "#%02X%02X%02X", value, 255 - value, value / 2)
+            #expect(Color(hex: hex)?.toHex() == hex)
+        }
+    }
+
+    @Test("toHex writes black and white with two digits per channel")
+    func toHexExtremes() {
+        #expect(Color(hex: "000000")?.toHex() == "#000000")
+        #expect(Color(hex: "FFFFFF")?.toHex() == "#FFFFFF")
     }
 
     @Test("Color returns nil for invalid hex")

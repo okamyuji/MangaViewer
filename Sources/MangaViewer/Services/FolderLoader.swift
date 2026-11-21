@@ -1,4 +1,3 @@
-import AppKit
 import Foundation
 
 final class FolderLoader: PageProvider, Sendable {
@@ -29,6 +28,10 @@ final class FolderLoader: PageProvider, Sendable {
     }
 
     private static func findImageFiles(in directory: URL) -> [URL] {
+        (try? CoordinatedRead.read(directory) { enumerateImageFiles(in: $0) }) ?? []
+    }
+
+    private static func enumerateImageFiles(in directory: URL) -> [URL] {
         var results: [URL] = []
         let fileManager = FileManager.default
 
@@ -49,14 +52,16 @@ final class FolderLoader: PageProvider, Sendable {
         return results
     }
 
-    func image(at index: Int) async throws -> NSImage {
+    func image(at index: Int) async throws -> PlatformImage {
         guard index >= 0 && index < imageFiles.count else {
             throw MangaViewerError.pageOutOfRange(index, imageFiles.count)
         }
 
         let fileURL = imageFiles[index]
 
-        guard let image = NSImage(contentsOf: fileURL) else {
+        guard let data = try? CoordinatedRead.read(fileURL, { try Data(contentsOf: $0) }),
+              let image = PlatformImage(imageData: data)
+        else {
             throw MangaViewerError.invalidImageData
         }
 

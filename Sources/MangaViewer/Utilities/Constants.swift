@@ -5,9 +5,9 @@ enum Constants {
         static let width: CGFloat = 200
         static let height: CGFloat = 300
     }
+}
 
-    enum Grid {
-        static let minItemWidth: CGFloat = 180
-        static let spacing: CGFloat = 20
-    }
+enum AppEnvironment {
+    /// Set by Xcode when the app hosts a unit-test bundle; UI tests launch the app without it.
+    static let isRunningUnitTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
 }

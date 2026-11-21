@@ -74,6 +74,8 @@ struct ReaderToolbar: View {
         .padding(.horizontal)
         .padding(.vertical, 8)
         .background(.ultraThinMaterial)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("readerToolbar")
     }
 
     private var pageNavigation: some View {
@@ -102,6 +104,7 @@ struct ReaderToolbar: View {
                 Text("\(viewModel.currentPage + 1) / \(viewModel.totalPages)")
                     .monospacedDigit()
                     .frame(minWidth: 80)
+                    .accessibilityIdentifier("pageIndicator")
 
                 // RTL: Back button on right (goes to previous page)
                 Button {
@@ -122,6 +125,7 @@ struct ReaderToolbar: View {
                 Text("\(viewModel.currentPage + 1) / \(viewModel.totalPages)")
                     .monospacedDigit()
                     .frame(minWidth: 80)
+                    .accessibilityIdentifier("pageIndicator")
 
                 CleanSlider(
                     value: Binding(

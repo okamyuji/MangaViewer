@@ -1,41 +1,33 @@
-import AppKit
 import Foundation
-import os.log
 import SwiftData
-
-private let logger = Logger(
-    subsystem: Bundle.main.bundleIdentifier ?? "MangaViewer", category: "LibraryViewModel"
-)
 
 @Observable
 @MainActor
 final class LibraryViewModel {
-    var searchText: String = ""
-    var selectedTag: Tag?
-    var sortOrder: SortOrder = .title
-    var isImporting: Bool = false
-
     private let modelContext: ModelContext
     private let libraryWatcher = LibraryWatcher()
 
-    private let settingsViewModel = SettingsViewModel()
+    private let settingsViewModel: SettingsViewModel
     private var isRefreshing = false
+    /// Folders already reported as inaccessible, so repeated rescans do not raise the alert again
+    private var reportedInaccessiblePaths: Set<String> = []
 
     @ObservationIgnored
-    private nonisolated(unsafe) var folderRemovedObserver: (any NSObjectProtocol)?
+    private nonisolated(unsafe) var folderObservers: [any NSObjectProtocol] = []
 
-    init(modelContext: ModelContext, startWatching: Bool = true) {
+    init(modelContext: ModelContext, startWatching: Bool = true, settings: SettingsViewModel = SettingsViewModel()) {
         self.modelContext = modelContext
+        settingsViewModel = settings
         if startWatching {
             setupWatcher()
             Task {
-                await restoreWatchedFolders()
+                await rescanWatchedFolders()
             }
         }
     }
 
     nonisolated deinit {
-        if let observer = folderRemovedObserver {
+        for observer in folderObservers {
             NotificationCenter.default.removeObserver(observer)
         }
     }
@@ -46,7 +38,8 @@ final class LibraryViewModel {
                 self?.refreshLibrary()
             }
         }
-        folderRemovedObserver = NotificationCenter.default.addObserver(
+        let center = NotificationCenter.default
+        folderObservers.append(center.addObserver(
             forName: .watchedFolderRemoved,
             object: nil,
             queue: .main
@@ -55,13 +48,20 @@ final class LibraryViewModel {
             Task { @MainActor in
                 self?.libraryWatcher.unwatch(folder: url)
             }
-        }
+        })
+        folderObservers.append(center.addObserver(
+            forName: .watchedFolderAdded,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let url = notification.object as? URL else { return }
+            Task { @MainActor in
+                await self?.scanWatchedFolder(path: url.path)
+            }
+        })
     }
 
     func addFolder(_ url: URL) async {
-        isImporting = true
-        defer { isImporting = false }
-
         let accessing = url.startAccessingSecurityScopedResource()
         defer {
             if accessing {
@@ -77,7 +77,13 @@ final class LibraryViewModel {
         }
 
         if isDirectory.boolValue {
-            await SecurityScopedBookmarkManager.shared.saveBookmark(for: url)
+            // A picked folder joins the watched folders, so books added to it later are imported too
+            if await !settingsViewModel.registerWatchedFolder(url) {
+                AppState.shared.openError =
+                    "Could not keep access to \(url.lastPathComponent), "
+                        + "so books added to it later will not be imported."
+                AppState.shared.showError = true
+            }
             await scanFolder(url)
         } else {
             await addBook(at: url)
@@ -104,12 +110,20 @@ final class LibraryViewModel {
             await addBook(at: fileURL)
         }
 
-        libraryWatcher.watch(folder: folderURL)
+        #if os(macOS)
+            libraryWatcher.watch(folder: folderURL)
+        #endif
     }
 
     /// Scans a folder for supported book files, filtering out already-known paths.
     /// Runs off-MainActor to avoid blocking the UI with file-system IO.
     private nonisolated static func findNewBookFiles(
+        in folderURL: URL, excluding existingPaths: Set<String>
+    ) -> [URL] {
+        (try? CoordinatedRead.read(folderURL) { enumerateBookFiles(in: $0, excluding: existingPaths) }) ?? []
+    }
+
+    private nonisolated static func enumerateBookFiles(
         in folderURL: URL, excluding existingPaths: Set<String>
     ) -> [URL] {
         let fileManager = FileManager.default
@@ -133,6 +147,12 @@ final class LibraryViewModel {
         }.value
 
         guard let info else { return }
+
+        // Another scan of the same folder may have inserted this file while we were awaiting.
+        // The check and the insert below run on MainActor without a suspension point between them.
+        let filePath = info.filePath
+        let duplicates = FetchDescriptor<Book>(predicate: #Predicate { $0.filePath == filePath })
+        guard (try? modelContext.fetchCount(duplicates)) == 0 else { return }
 
         // SwiftData insertion must happen on MainActor
         let book = Book(
@@ -159,7 +179,7 @@ final class LibraryViewModel {
 
             let title = url.deletingPathExtension().lastPathComponent
             let bookmarkData = try? url.bookmarkData(
-                options: .withSecurityScope,
+                options: BookmarkOptions.creation,
                 includingResourceValuesForKeys: nil,
                 relativeTo: nil
             )
@@ -179,12 +199,6 @@ final class LibraryViewModel {
         }
     }
 
-    func removeBook(_ book: Book) async {
-        await SecurityScopedBookmarkManager.shared.removeBookmark(for: book.filePath)
-        modelContext.delete(book)
-        try? modelContext.save()
-    }
-
     func refreshLibrary() {
         guard !isRefreshing else { return }
         isRefreshing = true
@@ -197,21 +211,36 @@ final class LibraryViewModel {
         }
     }
 
-    private func restoreWatchedFolders() async {
-        let urls = await settingsViewModel.restoreWatchedFolderAccess()
+    /// Re-reads every watched folder. On macOS the folders are also (re)watched for changes;
+    /// iPadOS relies on this rescan at launch and on pull-to-refresh instead.
+    func rescanWatchedFolders() async {
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        defer { isRefreshing = false }
+        let (urls, inaccessible) = await settingsViewModel.restoreWatchedFolderAccess()
+        reportInaccessible(inaccessible)
         for url in urls {
-            libraryWatcher.watch(folder: url)
             await scanFolder(url)
             // Balance the startAccessing call; watcher manages its own access per-directory
             await SecurityScopedBookmarkManager.shared.stopAccessing(url: url)
         }
     }
 
-    func openBookInFinder(_ book: Book) {
-        let url = URL(fileURLWithPath: book.filePath)
-        NSWorkspace.shared.selectFile(
-            url.path, inFileViewerRootedAtPath: url.deletingLastPathComponent().path
-        )
+    private func scanWatchedFolder(path: String) async {
+        guard let access = await SecurityScopedBookmarkManager.shared.startAccessing(path: path) else {
+            reportInaccessible([URL(fileURLWithPath: path)])
+            return
+        }
+        await scanFolder(access.url)
+        await SecurityScopedBookmarkManager.shared.stopAccessing(url: access.url)
+    }
+
+    private func reportInaccessible(_ folders: [URL]) {
+        let newFolders = folders.filter { reportedInaccessiblePaths.insert($0.path).inserted }
+        guard !newFolders.isEmpty else { return }
+        let names = newFolders.map(\.lastPathComponent).joined(separator: ", ")
+        AppState.shared.openError = "Cannot access watched folders: \(names). Choose them again in Settings."
+        AppState.shared.showError = true
     }
 }
 

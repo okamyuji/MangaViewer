@@ -5,6 +5,9 @@ struct ReaderView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel = ReaderViewModel()
+    #if os(iOS)
+        @FocusState private var isFocused: Bool
+    #endif
 
     let book: Book?
     let provider: PageProvider?
@@ -27,19 +30,30 @@ struct ReaderView: View {
 
     var body: some View {
         ZStack {
-            Color(nsColor: .windowBackgroundColor)
+            Color.readerBackground
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
                 contentView
-                    .background(Color(nsColor: .windowBackgroundColor))
-                ReaderToolbar(viewModel: viewModel)
+                    .background(Color.readerBackground)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("readerContent")
+                #if os(iOS)
+                    .modifier(TouchReaderControls(viewModel: viewModel, perform: perform))
+                #endif
+                if showsToolbar {
+                    ReaderToolbar(viewModel: viewModel)
+                }
             }
 
-            KeyboardHandlerView { keyCode in
-                handleKeyCode(keyCode)
-            }
-            .frame(width: 0, height: 0)
+            #if os(macOS)
+                KeyboardHandlerView { keyCode in
+                    guard let command = ReaderCommand(macKeyCode: keyCode) else { return false }
+                    perform(command)
+                    return true
+                }
+                .frame(width: 0, height: 0)
+            #endif
 
             if viewModel.showBookmarkToast {
                 VStack {
@@ -58,29 +72,52 @@ struct ReaderView: View {
             }
         }
         .navigationTitle(book?.title ?? bookTitle ?? "Reader")
-        .navigationBarBackButtonHidden(viewModel.isFullScreen)
-        .toolbar(viewModel.isFullScreen ? .hidden : .automatic)
-        .toolbar {
-            if onClose != nil {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") {
-                        onClose?()
+        #if os(iOS)
+            // A large title takes a whole row above the pages, which a landscape spread cannot spare
+            .navigationBarTitleDisplayMode(.inline)
+            .statusBarHidden(viewModel.isFullScreen)
+        #endif
+            .navigationBarBackButtonHidden(viewModel.isFullScreen)
+            .toolbar(viewModel.isFullScreen ? .hidden : .automatic)
+            .toolbar {
+                if onClose != nil {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Close") {
+                            onClose?()
+                        }
                     }
                 }
             }
-        }
-        .onAppear {
-            Task {
+            // .task is cancelled when the reader disappears, so a book that finishes opening after that is dropped
+            .task {
                 if let book {
                     await viewModel.openBook(book, modelContext: modelContext)
                 } else if let provider, let title = bookTitle {
                     await viewModel.openProvider(provider, title: title)
                 }
             }
-        }
-        .onDisappear {
-            viewModel.closeBook()
-        }
+            .onDisappear {
+                viewModel.closeBook()
+            }
+        #if os(iOS)
+            .focusable()
+            .focused($isFocused)
+            .focusEffectDisabled()
+            .onAppear { isFocused = true }
+            .onKeyPress { press in
+                guard let command = ReaderCommand(key: press.key) else { return .ignored }
+                perform(command)
+                return .handled
+            }
+        #endif
+    }
+
+    private var showsToolbar: Bool {
+        #if os(iOS)
+            !viewModel.isFullScreen
+        #else
+            true
+        #endif
     }
 
     private var hasVisibleImage: Bool {
@@ -118,69 +155,15 @@ struct ReaderView: View {
         }
     }
 
-    // macOS key codes
-    private static let keyCodeLeftArrow: UInt16 = 123
-    private static let keyCodeRightArrow: UInt16 = 124
-    private static let keyCodeSpace: UInt16 = 49
-    private static let keyCodeEscape: UInt16 = 53
-    private static let keyCodeF: UInt16 = 3
-    private static let keyCodeB: UInt16 = 11
-    private static let keyCode0: UInt16 = 29
-    private static let keyCodeEqual: UInt16 = 24
-    private static let keyCodeMinus: UInt16 = 27
-
-    private func handleKeyCode(_ keyCode: UInt16) -> Bool {
-        switch keyCode {
-        case Self.keyCodeLeftArrow:
-            if viewModel.readingDirection == .rightToLeft {
-                viewModel.nextPage()
-            } else {
-                viewModel.previousPage()
-            }
-            return true
-
-        case Self.keyCodeRightArrow:
-            if viewModel.readingDirection == .rightToLeft {
-                viewModel.previousPage()
-            } else {
-                viewModel.nextPage()
-            }
-            return true
-
-        case Self.keyCodeSpace:
-            viewModel.nextPage()
-            return true
-
-        case Self.keyCodeF:
-            viewModel.toggleFullScreen()
-            return true
-
-        case Self.keyCodeB:
-            viewModel.toggleBookmark()
-            return true
-
-        case Self.keyCode0:
-            viewModel.resetZoom()
-            return true
-
-        case Self.keyCodeEqual:
-            viewModel.zoomIn()
-            return true
-
-        case Self.keyCodeMinus:
-            viewModel.zoomOut()
-            return true
-
-        case Self.keyCodeEscape:
-            if let onClose {
-                onClose()
-            } else {
-                dismiss()
-            }
-            return true
-
-        default:
-            return false
+    private func perform(_ command: ReaderCommand) {
+        guard command == .close else {
+            viewModel.perform(command)
+            return
+        }
+        if let onClose {
+            onClose()
+        } else {
+            dismiss()
         }
     }
 }

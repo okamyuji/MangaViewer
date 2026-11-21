@@ -1,34 +1,38 @@
-import AppKit
 import Foundation
 import Unrar
 
 final class RarExtractor: PageProvider, @unchecked Sendable {
-    private let archive: Archive
+    private let url: URL
     private let imageEntries: [Entry]
     private let lock = NSLock()
     let pageCount: Int
 
     init(url: URL) throws {
-        guard FileManager.default.fileExists(atPath: url.path) else {
-            throw MangaViewerError.archiveNotFound
+        self.url = url
+        // Unrar reopens the file by URL for every call, so the listing happens inside the read
+        let allEntries = try CoordinatedRead.read(url) { readable in
+            guard FileManager.default.fileExists(atPath: readable.path) else {
+                throw MangaViewerError.archiveNotFound
+            }
+            do {
+                return try Archive(fileURL: readable).entries()
+            } catch {
+                throw MangaViewerError.extractionFailed(
+                    "Failed to open RAR archive: \(error.localizedDescription)"
+                )
+            }
         }
 
         do {
-            archive = try Archive(fileURL: url)
-        } catch {
-            throw MangaViewerError.extractionFailed(
-                "Failed to open RAR archive: \(error.localizedDescription)"
-            )
-        }
-
-        do {
-            let allEntries = try archive.entries()
             let imageOnlyEntries = allEntries.filter { entry in
                 !entry.directory && ImageFileFilter.isImageFile(entry.fileName)
             }
 
-            let sortedNames = ImageFileFilter.sortedNaturally(imageOnlyEntries.map(\.fileName))
-            let entryMap = Dictionary(uniqueKeysWithValues: imageOnlyEntries.map { ($0.fileName, $0) })
+            // A malformed archive can store one name twice; keep the first instead of trapping
+            let entryMap = Dictionary(
+                imageOnlyEntries.map { ($0.fileName, $0) }, uniquingKeysWith: { first, _ in first }
+            )
+            let sortedNames = ImageFileFilter.sortedNaturally(Array(entryMap.keys))
             imageEntries = sortedNames.compactMap { entryMap[$0] }
             pageCount = imageEntries.count
 
@@ -44,7 +48,7 @@ final class RarExtractor: PageProvider, @unchecked Sendable {
         }
     }
 
-    func image(at index: Int) async throws -> NSImage {
+    func image(at index: Int) async throws -> PlatformImage {
         guard index >= 0 && index < imageEntries.count else {
             throw MangaViewerError.pageOutOfRange(index, imageEntries.count)
         }
@@ -52,7 +56,7 @@ final class RarExtractor: PageProvider, @unchecked Sendable {
         let entry = imageEntries[index]
         let imageData = try extractEntry(entry)
 
-        guard let image = NSImage(data: imageData) else {
+        guard let image = PlatformImage(imageData: imageData) else {
             throw MangaViewerError.invalidImageData
         }
 
@@ -64,7 +68,8 @@ final class RarExtractor: PageProvider, @unchecked Sendable {
         defer { lock.unlock() }
 
         do {
-            return try archive.extract(entry)
+            // Unrar finds the entry by name, so an archive opened at the coordinated URL works
+            return try CoordinatedRead.read(url) { readable in try Archive(fileURL: readable).extract(entry) }
         } catch {
             throw MangaViewerError.extractionFailed("Failed to extract: \(error.localizedDescription)")
         }
