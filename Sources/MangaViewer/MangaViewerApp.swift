@@ -14,7 +14,10 @@ struct MangaViewerApp: App {
     init() {
         let container = Self.makeModelContainer()
         sharedModelContainer = container
-        _library = State(initialValue: LibraryViewModel(modelContext: container.mainContext))
+        // Unit tests are hosted by the app; keep them away from the real library and watched folders
+        _library = State(initialValue: LibraryViewModel(
+            modelContext: container.mainContext, startWatching: !AppEnvironment.isRunningUnitTests
+        ))
     }
 
     private static func makeModelContainer() -> ModelContainer {
@@ -24,7 +27,9 @@ struct MangaViewerApp: App {
             Bookmark.self,
             Tag.self
         ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        let modelConfiguration = ModelConfiguration(
+            schema: schema, isStoredInMemoryOnly: AppEnvironment.isRunningUnitTests
+        )
 
         do {
             return try ModelContainer(for: schema, configurations: [modelConfiguration])

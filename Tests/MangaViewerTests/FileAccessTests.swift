@@ -40,6 +40,18 @@ struct BookmarkOptionsTests {
         await manager.removeBookmark(for: folder.path)
         #expect(await manager.startAccessing(path: folder.path) == nil)
     }
+
+    @Test("unit tests keep bookmarks out of the app's real settings")
+    func bookmarksStayOutOfStandardDefaults() async throws {
+        let folder = try makeTemporaryFile(named: "page.png").deletingLastPathComponent()
+        let before = UserDefaults.standard.data(forKey: "securityScopedBookmarks")
+
+        await SecurityScopedBookmarkManager.shared.saveBookmark(for: folder)
+        let after = UserDefaults.standard.data(forKey: "securityScopedBookmarks")
+        await SecurityScopedBookmarkManager.shared.removeBookmark(for: folder.path)
+
+        #expect(after == before)
+    }
 }
 
 @Suite("AppState.openFile Tests", .serialized)
