@@ -45,13 +45,20 @@ struct ReaderPageLoadingTests {
         await vm.openProvider(StubPageProvider(pageCount: 4, failingPages: [0]), title: "Book")
         #expect(vm.errorMessage != nil)
 
+        // The failed page left an empty image in the spread; pages 2 and 3 both have a size
+        let pageSize = CGSize(width: 60, height: 90)
+        func showsPagesTwoAndThree() -> Bool {
+            vm.spreadImages.left?.size == pageSize && vm.spreadImages.right?.size == pageSize
+        }
+        #expect(!showsPagesTwoAndThree())
+
         vm.goToPage(2)
-        for _ in 0 ..< 50 where vm.errorMessage != nil {
+        for _ in 0 ..< 50 where !showsPagesTwoAndThree() {
             try await Task.sleep(for: .milliseconds(20))
         }
 
+        #expect(showsPagesTwoAndThree())
         #expect(vm.errorMessage == nil)
-        #expect(vm.spreadImages.left != nil || vm.spreadImages.right != nil)
     }
 
     @Test("a page that fails to decode is replaced by an 800x1200 placeholder")
