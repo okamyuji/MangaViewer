@@ -96,6 +96,17 @@ struct LibraryWatchingTests {
         _ = library
     }
 
+    @Test("a folder whose bookmark cannot be created is not added to the watched folders")
+    func unbookmarkableFolderIsRejected() async {
+        let settings = SettingsViewModel(store: makeIsolatedSettingsStore())
+        let missing = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+
+        let added = await settings.addWatchedFolder(missing)
+
+        #expect(added == false)
+        #expect(settings.watchedFolders.isEmpty)
+    }
+
     @Test("a watched folder without archives imports nothing")
     func emptyFolderImportsNothing() async throws {
         let context = try makeContext()

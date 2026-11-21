@@ -37,7 +37,8 @@ actor SecurityScopedBookmarkManager {
         return UserDefaults(suiteName: suiteName) ?? .standard
     }
 
-    func saveBookmark(for url: URL) {
+    @discardableResult
+    func saveBookmark(for url: URL) -> Bool {
         do {
             let bookmarkData = try url.bookmarkData(
                 options: BookmarkOptions.creation,
@@ -47,8 +48,10 @@ actor SecurityScopedBookmarkManager {
             var bookmarks = loadAllBookmarkData()
             bookmarks[url.path] = bookmarkData
             saveAllBookmarkData(bookmarks)
+            return true
         } catch {
             logger.error("Failed to save bookmark for \(url.path): \(error)")
+            return false
         }
     }
 

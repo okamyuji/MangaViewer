@@ -45,7 +45,10 @@ struct SettingsView: View {
             switch result {
             case let .success(url):
                 Task {
-                    await viewModel.addWatchedFolder(url)
+                    if await !viewModel.addWatchedFolder(url) {
+                        AppState.shared.openError = "Could not keep access to \(url.lastPathComponent). Choose the folder again."
+                        AppState.shared.showError = true
+                    }
                 }
             case let .failure(error):
                 AppState.shared.openError = error.localizedDescription
