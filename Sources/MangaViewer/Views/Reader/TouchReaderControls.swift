@@ -24,7 +24,9 @@
                         DragGesture(minimumDistance: 20)
                             .onEnded { drag in
                                 if let action = ReaderGesture.swipeAction(
-                                    translation: drag.translation, zoomScale: viewModel.zoomScale, overflowsHorizontally: pageOverflowsHorizontally,
+                                    translation: drag.translation,
+                                    zoomScale: viewModel.zoomScale,
+                                    overflowsHorizontally: pageOverflowsHorizontally,
                                     direction: viewModel.readingDirection
                                 ) {
                                     handle(action)

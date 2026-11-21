@@ -25,7 +25,9 @@ enum ReaderGesture {
         translation: CGSize, zoomScale: CGFloat, overflowsHorizontally: Bool, direction: ReadingDirection
     ) -> ReaderAction? {
         let dx = translation.width
-        guard zoomScale <= 1, !overflowsHorizontally, abs(dx) >= swipeThreshold, abs(dx) > abs(translation.height) else { return nil }
+        guard zoomScale <= 1, !overflowsHorizontally,
+              abs(dx) >= swipeThreshold, abs(dx) > abs(translation.height)
+        else { return nil }
         let rightward = dx > 0
         return rightward == (direction == .rightToLeft) ? .next : .previous
     }

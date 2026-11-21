@@ -99,7 +99,9 @@ struct ZoomableImageView: View {
     }
 
     private func recenter(imageSize: CGSize, containerSize: CGSize) {
-        offset = ReaderGesture.clampedOffset(offset, contentSize: displayedSize(imageSize), containerSize: containerSize)
+        offset = ReaderGesture.clampedOffset(
+            offset, contentSize: displayedSize(imageSize), containerSize: containerSize
+        )
         lastOffset = offset
     }
 

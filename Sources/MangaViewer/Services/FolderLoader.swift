@@ -59,7 +59,9 @@ final class FolderLoader: PageProvider, Sendable {
 
         let fileURL = imageFiles[index]
 
-        guard let data = try? CoordinatedRead.read(fileURL, { try Data(contentsOf: $0) }), let image = PlatformImage(imageData: data) else {
+        guard let data = try? CoordinatedRead.read(fileURL, { try Data(contentsOf: $0) }),
+              let image = PlatformImage(imageData: data)
+        else {
             throw MangaViewerError.invalidImageData
         }
 
