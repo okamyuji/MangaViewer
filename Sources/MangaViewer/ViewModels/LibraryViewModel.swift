@@ -1,10 +1,5 @@
 import Foundation
-import os.log
 import SwiftData
-
-private let logger = Logger(
-    subsystem: Bundle.main.bundleIdentifier ?? "MangaViewer", category: "LibraryViewModel"
-)
 
 @Observable
 @MainActor
@@ -117,20 +112,7 @@ final class LibraryViewModel {
     private nonisolated static func findNewBookFiles(
         in folderURL: URL, excluding existingPaths: Set<String>
     ) -> [URL] {
-        #if os(iOS)
-            // Folders picked from the Files app may live in a file provider; Apple requires coordinated reads
-            var found: [URL] = []
-            var coordinationError: NSError?
-            NSFileCoordinator().coordinate(readingItemAt: folderURL, options: [], error: &coordinationError) { url in
-                found = enumerateBookFiles(in: url, excluding: existingPaths)
-            }
-            if let coordinationError {
-                logger.error("Coordinated read of \(folderURL.path) failed: \(coordinationError)")
-            }
-            return found
-        #else
-            return enumerateBookFiles(in: folderURL, excluding: existingPaths)
-        #endif
+        CoordinatedRead.read(folderURL) { enumerateBookFiles(in: $0, excluding: existingPaths) } ?? []
     }
 
     private nonisolated static func enumerateBookFiles(

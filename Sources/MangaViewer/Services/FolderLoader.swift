@@ -28,6 +28,10 @@ final class FolderLoader: PageProvider, Sendable {
     }
 
     private static func findImageFiles(in directory: URL) -> [URL] {
+        CoordinatedRead.read(directory) { enumerateImageFiles(in: $0) } ?? []
+    }
+
+    private static func enumerateImageFiles(in directory: URL) -> [URL] {
         var results: [URL] = []
         let fileManager = FileManager.default
 
@@ -55,7 +59,7 @@ final class FolderLoader: PageProvider, Sendable {
 
         let fileURL = imageFiles[index]
 
-        guard let data = try? Data(contentsOf: fileURL), let image = PlatformImage(imageData: data) else {
+        guard let data = CoordinatedRead.read(fileURL, { try? Data(contentsOf: $0) }) ?? nil, let image = PlatformImage(imageData: data) else {
             throw MangaViewerError.invalidImageData
         }
 

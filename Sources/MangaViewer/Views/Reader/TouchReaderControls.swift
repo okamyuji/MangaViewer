@@ -5,6 +5,7 @@
     struct TouchReaderControls: ViewModifier {
         let viewModel: ReaderViewModel
         let perform: (ReaderCommand) -> Void
+        @State private var pageOverflowsHorizontally = false
 
         func body(content: Content) -> some View {
             GeometryReader { geometry in
@@ -23,13 +24,16 @@
                         DragGesture(minimumDistance: 20)
                             .onEnded { drag in
                                 if let action = ReaderGesture.swipeAction(
-                                    translation: drag.translation, zoomScale: viewModel.zoomScale,
+                                    translation: drag.translation, zoomScale: viewModel.zoomScale, overflowsHorizontally: pageOverflowsHorizontally,
                                     direction: viewModel.readingDirection
                                 ) {
                                     handle(action)
                                 }
                             }
                     )
+                    .onPreferenceChange(PageOverflowsHorizontallyKey.self) { overflows in
+                        pageOverflowsHorizontally = overflows
+                    }
                     .onAppear {
                         viewModel.setPrefersSinglePage(ReaderGesture.prefersSinglePage(containerSize: geometry.size))
                     }

@@ -8,6 +8,8 @@ struct ZoomableImageView: View {
     @State private var offset: CGSize = .zero
     @State private var lastOffset: CGSize = .zero
     @State private var pinchBaseScale: CGFloat?
+    /// Resets on its own when the system cancels a pinch, which skips onEnded.
+    @GestureState private var isPinching = false
 
     var body: some View {
         GeometryReader { geometry in
@@ -22,6 +24,7 @@ struct ZoomableImageView: View {
                 .clipped()
                 .gesture(
                     MagnifyGesture()
+                        .updating($isPinching) { _, pinching, _ in pinching = true }
                         .onChanged { value in
                             let base = pinchBaseScale ?? zoomScale
                             pinchBaseScale = base
@@ -65,6 +68,17 @@ struct ZoomableImageView: View {
                     offset = .zero
                     lastOffset = .zero
                 }
+                .onChange(of: isPinching) { _, pinching in
+                    if !pinching {
+                        pinchBaseScale = nil
+                    }
+                }
+            #if os(iOS)
+                .preference(
+                    key: PageOverflowsHorizontallyKey.self,
+                    value: ReaderGesture.overflows(imageSize.width * zoomScale, geometry.size.width)
+                )
+            #endif
         }
     }
 
@@ -95,3 +109,15 @@ struct ZoomableImageView: View {
         }
     }
 }
+
+#if os(iOS)
+    /// True when any page on screen is wider than its half of the reader, so a horizontal drag
+    /// pans it instead of turning the page.
+    struct PageOverflowsHorizontallyKey: PreferenceKey {
+        static let defaultValue = false
+
+        static func reduce(value: inout Bool, nextValue: () -> Bool) {
+            value = value || nextValue()
+        }
+    }
+#endif

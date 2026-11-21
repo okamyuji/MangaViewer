@@ -39,7 +39,8 @@ struct ReaderGestureTests {
     )
     func swipes(dx: CGFloat, dy: CGFloat, direction: ReadingDirection, expected: ReaderAction?) {
         let action = ReaderGesture.swipeAction(
-            translation: CGSize(width: dx, height: dy), zoomScale: 1, direction: direction
+            translation: CGSize(width: dx, height: dy), zoomScale: 1, overflowsHorizontally: false,
+            direction: direction
         )
         #expect(action == expected)
     }
@@ -47,8 +48,20 @@ struct ReaderGestureTests {
     @Test("dragging a zoomed-in page pans instead of turning the page")
     func zoomedDragDoesNotTurn() {
         let translation = CGSize(width: 300, height: 0)
-        #expect(ReaderGesture.swipeAction(translation: translation, zoomScale: 1.01, direction: .rightToLeft) == nil)
-        #expect(ReaderGesture.swipeAction(translation: translation, zoomScale: 0.8, direction: .rightToLeft) == .next)
+        #expect(ReaderGesture.swipeAction(
+            translation: translation, zoomScale: 1.01, overflowsHorizontally: false, direction: .rightToLeft
+        ) == nil)
+        #expect(ReaderGesture.swipeAction(
+            translation: translation, zoomScale: 0.8, overflowsHorizontally: false, direction: .rightToLeft
+        ) == .next)
+    }
+
+    @Test("dragging a page wider than the reader pans instead of turning the page")
+    func overflowingDragDoesNotTurn() {
+        #expect(ReaderGesture.swipeAction(
+            translation: CGSize(width: 300, height: 0), zoomScale: 1, overflowsHorizontally: true,
+            direction: .rightToLeft
+        ) == nil)
     }
 
     @Test(

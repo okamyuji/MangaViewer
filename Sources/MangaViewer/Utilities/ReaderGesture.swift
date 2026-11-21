@@ -21,9 +21,11 @@ enum ReaderGesture {
         return .toggleChrome
     }
 
-    static func swipeAction(translation: CGSize, zoomScale: CGFloat, direction: ReadingDirection) -> ReaderAction? {
+    static func swipeAction(
+        translation: CGSize, zoomScale: CGFloat, overflowsHorizontally: Bool, direction: ReadingDirection
+    ) -> ReaderAction? {
         let dx = translation.width
-        guard zoomScale <= 1, abs(dx) >= swipeThreshold, abs(dx) > abs(translation.height) else { return nil }
+        guard zoomScale <= 1, !overflowsHorizontally, abs(dx) >= swipeThreshold, abs(dx) > abs(translation.height) else { return nil }
         let rightward = dx > 0
         return rightward == (direction == .rightToLeft) ? .next : .previous
     }
@@ -31,11 +33,15 @@ enum ReaderGesture {
     /// A drag moves the page only along an axis where it overflows the reader, so fitWidth pages
     /// scroll vertically while a horizontal drag stays a page-turn swipe.
     static func panTranslation(_ translation: CGSize, contentSize: CGSize, containerSize: CGSize) -> CGSize {
-        let tolerance: CGFloat = 0.5
-        return CGSize(
-            width: contentSize.width > containerSize.width + tolerance ? translation.width : 0,
-            height: contentSize.height > containerSize.height + tolerance ? translation.height : 0
+        CGSize(
+            width: overflows(contentSize.width, containerSize.width) ? translation.width : 0,
+            height: overflows(contentSize.height, containerSize.height) ? translation.height : 0
         )
+    }
+
+    /// Half a point of slack so a fitWidth page whose width rounds to the reader's is not "wider".
+    static func overflows(_ content: CGFloat, _ container: CGFloat) -> Bool {
+        content > container + 0.5
     }
 
     /// `magnification` is the total scale since the pinch began (Apple's MagnifyGesture example
