@@ -55,8 +55,9 @@ final class ZipExtractor: PageProvider, @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
 
-        // The declared size can be forged, so the inflated bytes are counted as well
-        guard Int64(entry.uncompressedSize) <= maxEntryBytes else {
+        // The declared size can be forged (zip64 allows up to 2^64 - 1, beyond Int64), so the
+        // comparison stays in UInt64 and the inflated bytes are counted as well
+        guard entry.uncompressedSize <= UInt64(maxEntryBytes) else {
             throw MangaViewerError.pageTooLarge
         }
         var imageData = Data()

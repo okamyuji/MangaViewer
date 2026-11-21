@@ -18,6 +18,10 @@ enum Constants {
 enum AppEnvironment {
     /// Set by Xcode when the app hosts a unit-test bundle; UI tests launch the app without it.
     static let isRunningUnitTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
-    /// UI tests launch the app with a `-UITest…` argument; they get a throwaway library too.
-    static let isRunningUITests = ProcessInfo.processInfo.arguments.contains { $0.hasPrefix("-UITest") }
+    #if DEBUG
+        /// UI tests launch the app with a `-UITest…` argument; they get a throwaway library too.
+        static let isRunningUITests = ProcessInfo.processInfo.arguments.contains { $0.hasPrefix("-UITest") }
+    #else
+        static let isRunningUITests = false
+    #endif
 }

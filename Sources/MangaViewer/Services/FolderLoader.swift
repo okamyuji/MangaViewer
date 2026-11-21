@@ -2,12 +2,14 @@ import Foundation
 
 final class FolderLoader: PageProvider, Sendable {
     private let imageFiles: [URL]
+    private let maxPageBytes: Int64
 
     var pageCount: Int {
         imageFiles.count
     }
 
-    init(url: URL) throws {
+    init(url: URL, maxPageBytes: Int64 = Constants.Limits.maxPageBytes) throws {
+        self.maxPageBytes = maxPageBytes
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw MangaViewerError.archiveNotFound
         }
@@ -59,12 +61,24 @@ final class FolderLoader: PageProvider, Sendable {
 
         let fileURL = imageFiles[index]
 
-        guard let data = try? CoordinatedRead.read(fileURL, { try Data(contentsOf: $0) }),
-              let image = PlatformImage(imageData: data)
-        else {
+        let data: Data
+        do {
+            data = try CoordinatedRead.read(fileURL) { readable in
+                let size = try readable.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+                guard Int64(size) <= maxPageBytes else {
+                    throw MangaViewerError.pageTooLarge
+                }
+                return try Data(contentsOf: readable)
+            }
+        } catch let error as MangaViewerError {
+            throw error
+        } catch {
             throw MangaViewerError.invalidImageData
         }
 
+        guard let image = PlatformImage(imageData: data) else {
+            throw MangaViewerError.invalidImageData
+        }
         return image
     }
 
