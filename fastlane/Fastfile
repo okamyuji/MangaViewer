@@ -30,6 +30,7 @@ platform :mac do
   lane :lint do
     sh("cd .. && swiftlint lint --quiet")
     sh("cd .. && swiftformat --lint .")
+    sh("cd .. && sh scripts/stamp-version.test.sh")
   end
 
   desc "Build release"
