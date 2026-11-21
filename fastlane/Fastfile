@@ -11,6 +11,16 @@ platform :mac do
     sh("cd .. && xcodebuild -project MangaViewer.xcodeproj -scheme MangaViewerTests -configuration Debug test")
   end
 
+  desc "Run unit and UI tests on the first available iPad simulator"
+  lane :ipad_test do
+    require "json"
+    runtimes = JSON.parse(sh("xcrun simctl list devices available -j", log: false))["devices"]
+    ipad = runtimes.select { |runtime, _| runtime.include?("iOS") }.values.flatten.find { |device| device["name"].start_with?("iPad") }
+    UI.user_error!("No iPad simulator is available") unless ipad
+    sh("cd .. && xcodebuild -project MangaViewer.xcodeproj -scheme MangaViewer-iPad -configuration Debug " \
+       "-destination 'platform=iOS Simulator,id=#{ipad['udid']}' test")
+  end
+
   desc "Run linter and formatter checks"
   lane :lint do
     sh("cd .. && swiftlint lint --quiet")
@@ -27,11 +37,12 @@ platform :mac do
     sh("cd .. && xcodebuild -project MangaViewer.xcodeproj -scheme MangaViewer -configuration Release archive -archivePath build/MangaViewer.xcarchive")
   end
 
-  desc "Full CI pipeline: generate, lint, test, build"
+  desc "Full CI pipeline: generate, lint, test (macOS and iPad), build"
   lane :ci do
     generate
     lint
     test
+    ipad_test
     build
   end
 end
