@@ -48,7 +48,11 @@ final class FolderLoader: PageProvider, Sendable {
         }
 
         for case let fileURL as URL in enumerator where ImageFileFilter.isImageFile(fileURL) {
-            results.append(fileURL)
+            // A device or looped link has no size to check and may never end, so only files are pages
+            let target = fileURL.resolvingSymlinksInPath()
+            if (try? target.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true {
+                results.append(fileURL)
+            }
         }
 
         return results

@@ -290,6 +290,25 @@ struct DecompressionBombTests {
         await #expect { _ = try await loader.image(at: 0) } throws: { isPageTooLarge($0) }
     }
 
+    @Test("a folder page that links to a device or another non-file is not listed, so it is never read")
+    func folderSkipsNonRegularFiles() throws {
+        let folder = temporaryURL("")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try Self.page.write(to: folder.appendingPathComponent("001.png"))
+        try FileManager.default.createSymbolicLink(
+            at: folder.appendingPathComponent("002.png"), withDestinationURL: URL(fileURLWithPath: "/dev/zero")
+        )
+        try FileManager.default.createSymbolicLink(
+            at: folder.appendingPathComponent("003.png"), withDestinationURL: folder.appendingPathComponent("004.png")
+        )
+        try FileManager.default.createSymbolicLink(
+            at: folder.appendingPathComponent("004.png"), withDestinationURL: folder.appendingPathComponent("003.png")
+        )
+
+        #expect(try FolderLoader(url: folder).pageCount == 1)
+    }
+
     @Test("an image with more pixels than the limit is decoded downscaled, keeping its shape")
     func hugeImageIsDownscaled() throws {
         let data = TestImages.pngData(width: 3000, height: 1500)
