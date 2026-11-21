@@ -141,7 +141,7 @@ final class ReaderViewModel {
                 bookmarkData: bookmarkData
             ) else {
                 logger.warning("Failed to resolve bookmark for \(book.filePath)")
-                throw MangaViewerError.archiveNotFound
+                throw MangaViewerError.accessLost
             }
             scopedURL = resolved.url
             url = resolved.url

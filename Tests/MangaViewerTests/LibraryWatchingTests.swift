@@ -197,6 +197,22 @@ struct LibraryWatchingTests {
         #expect(reader.isLoading == false)
     }
 
+    @Test("a book whose bookmark no longer resolves asks the user to add it again")
+    func lostAccessAsksToReAdd() async throws {
+        let context = try makeContext()
+        let folder = try makeFolderWithSampleBook(pages: 2)
+        let book = Book(
+            title: "sample", filePath: folder.appendingPathComponent("sample.cbz").path, type: .cbz, totalPages: 2
+        )
+        book.bookmarkData = Data("not-a-bookmark".utf8)
+        context.insert(book)
+        let reader = makeIsolatedReader()
+
+        await reader.openBook(book, modelContext: context)
+
+        #expect(reader.errorMessage?.contains("Add it to the library again") == true)
+    }
+
     @Test("a watched folder without archives imports nothing")
     func emptyFolderImportsNothing() async throws {
         let context = try makeContext()

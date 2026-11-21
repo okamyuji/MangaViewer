@@ -123,6 +123,7 @@ struct MangaViewerErrorTests {
     @Test("Error descriptions are provided")
     func errorDescriptions() {
         #expect(MangaViewerError.archiveNotFound.errorDescription != nil)
+        #expect(MangaViewerError.accessLost.errorDescription?.contains("Add it to the library again") == true)
         #expect(MangaViewerError.unsupportedFormat.errorDescription != nil)
         #expect(MangaViewerError.extractionFailed("test").errorDescription?.contains("test") == true)
         #expect(MangaViewerError.invalidImageData.errorDescription != nil)
