@@ -28,6 +28,22 @@ enum ReaderGesture {
         return rightward == (direction == .rightToLeft) ? .next : .previous
     }
 
+    /// A drag moves the page only along an axis where it overflows the reader, so fitWidth pages
+    /// scroll vertically while a horizontal drag stays a page-turn swipe.
+    static func panTranslation(_ translation: CGSize, contentSize: CGSize, containerSize: CGSize) -> CGSize {
+        let tolerance: CGFloat = 0.5
+        return CGSize(
+            width: contentSize.width > containerSize.width + tolerance ? translation.width : 0,
+            height: contentSize.height > containerSize.height + tolerance ? translation.height : 0
+        )
+    }
+
+    /// `magnification` is the total scale since the pinch began (Apple's MagnifyGesture example
+    /// applies it directly), so it multiplies the zoom captured at the start, not the live zoom.
+    static func pinchScale(base: CGFloat, magnification: CGFloat) -> CGFloat {
+        max(0.25, min(5.0, base * magnification))
+    }
+
     static func prefersSinglePage(containerSize: CGSize) -> Bool {
         containerSize.height > containerSize.width
     }

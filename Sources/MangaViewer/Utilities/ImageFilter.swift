@@ -55,6 +55,6 @@ enum ImageFilterApplier {
             return image
         }
 
-        return PlatformImage.make(cgImage: outputCGImage)
+        return PlatformImage.make(cgImage: outputCGImage, matching: image)
     }
 }

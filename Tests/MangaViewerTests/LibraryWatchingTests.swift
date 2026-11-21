@@ -61,6 +61,24 @@ struct LibraryWatchingTests {
         #expect(try context.fetchCount(FetchDescriptor<Book>()) == 6)
     }
 
+    @Test("a launch rescan overlapping a manual import of the same folder imports each archive once")
+    func rescanAndManualImportImportOnce() async throws {
+        let context = try makeContext()
+        let settings = SettingsViewModel(store: makeIsolatedSettingsStore())
+        let folder = try makeFolderWithSampleBook(pages: 2)
+        for index in 1 ... 5 {
+            try SampleBook.writeCBZ(to: folder.appendingPathComponent("extra\(index).cbz"), pageCount: 2)
+        }
+        await settings.addWatchedFolder(folder)
+        let library = LibraryViewModel(modelContext: context, startWatching: false, settings: settings)
+
+        async let rescan: Void = library.rescanWatchedFolders()
+        async let manual: Void = library.addFolder(folder)
+        _ = await (rescan, manual)
+
+        #expect(try context.fetchCount(FetchDescriptor<Book>()) == 6)
+    }
+
     @Test("a folder added in Settings is imported without restarting the app")
     func addedFolderIsImported() async throws {
         let context = try makeContext()

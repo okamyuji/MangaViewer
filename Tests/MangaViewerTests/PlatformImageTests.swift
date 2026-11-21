@@ -30,6 +30,15 @@ enum TestImages {
         return data as Data
     }
 
+    static func jpegData(width: Int, height: Int, exifOrientation: Int) -> Data {
+        let data = NSMutableData()
+        let dest = CGImageDestinationCreateWithData(data, UTType.jpeg.identifier as CFString, 1, nil)!
+        let properties = [kCGImagePropertyOrientation: exifOrientation] as CFDictionary
+        CGImageDestinationAddImage(dest, solidCGImage(width: width, height: height), properties)
+        CGImageDestinationFinalize(dest)
+        return data as Data
+    }
+
     static func pixelSize(ofEncoded data: Data) -> CGSize? {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil),
               let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
@@ -55,6 +64,18 @@ struct PlatformImageTests {
     func pixelSizeIgnoresDPI() throws {
         let image = try #require(PlatformImage(imageData: TestImages.pngData(width: 40, height: 60, dpi: 144)))
         #expect(image.pixelSize == CGSize(width: 40, height: 60))
+    }
+
+    @Test("a JPEG rotated by EXIF reports its upright pixel size and thumbnail")
+    func exifOrientationApplied() throws {
+        // Orientation 6: stored landscape, displayed rotated 90° clockwise to portrait
+        let data = TestImages.jpegData(width: 100, height: 50, exifOrientation: 6)
+        let image = try #require(PlatformImage(imageData: data))
+
+        #expect(image.pixelSize == CGSize(width: 50, height: 100))
+        let thumbnail = try #require(ThumbnailGenerator.jpegData(from: image, maxSize: CGSize(width: 200, height: 300)))
+        let thumbnailSize = try #require(TestImages.pixelSize(ofEncoded: thumbnail))
+        #expect(thumbnailSize.height > thumbnailSize.width)
     }
 
     @Test("init(imageData:) returns nil for non-image data")

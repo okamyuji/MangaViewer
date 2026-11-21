@@ -7,6 +7,7 @@ struct ZoomableImageView: View {
 
     @State private var offset: CGSize = .zero
     @State private var lastOffset: CGSize = .zero
+    @State private var pinchBaseScale: CGFloat?
 
     var body: some View {
         GeometryReader { geometry in
@@ -22,20 +23,31 @@ struct ZoomableImageView: View {
                 .gesture(
                     MagnifyGesture()
                         .onChanged { value in
-                            let newScale = max(0.25, min(5.0, zoomScale * value.magnification))
-                            zoomScale = newScale
+                            let base = pinchBaseScale ?? zoomScale
+                            pinchBaseScale = base
+                            zoomScale = ReaderGesture.pinchScale(base: base, magnification: value.magnification)
+                        }
+                        .onEnded { _ in
+                            pinchBaseScale = nil
                         }
                 )
                 .simultaneousGesture(
                     DragGesture()
                         .onChanged { value in
                             #if os(iOS)
-                                // At fit size a horizontal drag is a page-turn swipe, not a pan
-                                guard zoomScale > 1 else { return }
+                                let translation = ReaderGesture.panTranslation(
+                                    value.translation,
+                                    contentSize: CGSize(
+                                        width: imageSize.width * zoomScale, height: imageSize.height * zoomScale
+                                    ),
+                                    containerSize: geometry.size
+                                )
+                            #else
+                                let translation = value.translation
                             #endif
                             offset = CGSize(
-                                width: lastOffset.width + value.translation.width,
-                                height: lastOffset.height + value.translation.height
+                                width: lastOffset.width + translation.width,
+                                height: lastOffset.height + translation.height
                             )
                         }
                         .onEnded { _ in

@@ -232,6 +232,23 @@ struct ImageFilterApplierTests {
         #expect(result !== original)
         #expect(result.size == original.size)
     }
+
+    @Test("filtered image keeps the point size of a high-density original")
+    func filterKeepsPointSize() {
+        let pixels = TestImages.solidCGImage(width: 100, height: 100)
+        #if os(macOS)
+            let original = NSImage(cgImage: pixels, size: CGSize(width: 50, height: 50))
+        #else
+            let original = UIImage(cgImage: pixels, scale: 2, orientation: .up)
+        #endif
+        var settings = ImageFilterSettings()
+        settings.sepia = 0.8
+
+        let result = ImageFilterApplier.apply(settings, to: original)
+
+        #expect(result.size == CGSize(width: 50, height: 50))
+        #expect(result.pixelSize == CGSize(width: 100, height: 100))
+    }
 }
 
 @Suite("ReaderViewModel Tests")

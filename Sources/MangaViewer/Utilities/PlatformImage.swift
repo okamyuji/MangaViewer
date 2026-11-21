@@ -21,8 +21,33 @@ extension PlatformImage {
         #endif
     }
 
+    /// Keeps the original's point size (DPI on macOS, scale and orientation on iOS), which
+    /// actualSize and custom zoom lay out by.
+    static func make(cgImage: CGImage, matching original: PlatformImage) -> PlatformImage {
+        #if os(macOS)
+            NSImage(cgImage: cgImage, size: original.size)
+        #else
+            UIImage(cgImage: cgImage, scale: original.scale, orientation: original.imageOrientation)
+        #endif
+    }
+
     convenience init?(imageData: Data) {
-        self.init(data: imageData)
+        #if os(macOS)
+            self.init(data: imageData)
+        #else
+            // UIImage keeps EXIF rotation in imageOrientation, which cgImage ignores; redraw upright
+            // so thumbnails, filters and pixelSize see the page the way it is displayed.
+            guard let decoded = UIImage(data: imageData) else { return nil }
+            var upright = decoded.cgImage
+            if decoded.imageOrientation != .up {
+                let format = UIGraphicsImageRendererFormat()
+                format.scale = decoded.scale
+                upright = UIGraphicsImageRenderer(size: decoded.size, format: format)
+                    .image { _ in decoded.draw(at: .zero) }.cgImage
+            }
+            guard let upright else { return nil }
+            self.init(cgImage: upright, scale: decoded.scale, orientation: .up)
+        #endif
     }
 
     var cgImageValue: CGImage? {

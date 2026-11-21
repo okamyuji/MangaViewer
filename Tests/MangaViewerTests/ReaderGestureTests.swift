@@ -51,6 +51,41 @@ struct ReaderGestureTests {
         #expect(ReaderGesture.swipeAction(translation: translation, zoomScale: 0.8, direction: .rightToLeft) == .next)
     }
 
+    @Test(
+        "a drag pans only along the axes where the page overflows the reader",
+        arguments: [
+            // fitWidth portrait page on a portrait iPad: taller than the reader
+            (CGSize(width: 834, height: 1251), CGSize(width: 0, height: -40)),
+            // wider than the reader, e.g. actualSize of a wide scan
+            (CGSize(width: 1200, height: 800), CGSize(width: 30, height: 0)),
+            (CGSize(width: 1200, height: 1251), CGSize(width: 30, height: -40)),
+            // fits inside the reader
+            (CGSize(width: 834, height: 1100), CGSize.zero),
+            (CGSize(width: 700, height: 1000), CGSize.zero)
+        ]
+    )
+    func panOnlyOverflowingAxes(contentSize: CGSize, expected: CGSize) {
+        let pan = ReaderGesture.panTranslation(
+            CGSize(width: 30, height: -40), contentSize: contentSize,
+            containerSize: CGSize(width: 834, height: 1100)
+        )
+        #expect(pan == expected)
+    }
+
+    @Test(
+        "a pinch scales the zoom from where the gesture started, within 0.25 to 5",
+        arguments: [
+            (CGFloat(1), CGFloat(1.5), CGFloat(1.5)),
+            (2, 1.5, 3),
+            (2, 0.5, 1),
+            (4, 2, 5),
+            (0.5, 0.25, 0.25)
+        ]
+    )
+    func pinchScale(base: CGFloat, magnification: CGFloat, expected: CGFloat) {
+        #expect(ReaderGesture.pinchScale(base: base, magnification: magnification) == expected)
+    }
+
     @Test("portrait containers show one page, landscape and square show a spread")
     func singlePageByOrientation() {
         #expect(ReaderGesture.prefersSinglePage(containerSize: CGSize(width: 834, height: 1194)))

@@ -158,6 +158,12 @@ final class LibraryViewModel {
 
         guard let info else { return }
 
+        // Another scan of the same folder may have inserted this file while we were awaiting.
+        // The check and the insert below run on MainActor without a suspension point between them.
+        let filePath = info.filePath
+        let duplicates = FetchDescriptor<Book>(predicate: #Predicate { $0.filePath == filePath })
+        guard (try? modelContext.fetchCount(duplicates)) == 0 else { return }
+
         // SwiftData insertion must happen on MainActor
         let book = Book(
             title: info.title,
