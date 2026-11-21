@@ -72,38 +72,43 @@ struct ReaderView: View {
             }
         }
         .navigationTitle(book?.title ?? bookTitle ?? "Reader")
-        .navigationBarBackButtonHidden(viewModel.isFullScreen)
-        .toolbar(viewModel.isFullScreen ? .hidden : .automatic)
-        .toolbar {
-            if onClose != nil {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") {
-                        onClose?()
+        #if os(iOS)
+            // A large title takes a whole row above the pages, which a landscape spread cannot spare
+            .navigationBarTitleDisplayMode(.inline)
+            .statusBarHidden(viewModel.isFullScreen)
+        #endif
+            .navigationBarBackButtonHidden(viewModel.isFullScreen)
+            .toolbar(viewModel.isFullScreen ? .hidden : .automatic)
+            .toolbar {
+                if onClose != nil {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Close") {
+                            onClose?()
+                        }
                     }
                 }
             }
-        }
-        // .task is cancelled when the reader disappears, so a book that finishes opening after that is dropped
-        .task {
-            if let book {
-                await viewModel.openBook(book, modelContext: modelContext)
-            } else if let provider, let title = bookTitle {
-                await viewModel.openProvider(provider, title: title)
+            // .task is cancelled when the reader disappears, so a book that finishes opening after that is dropped
+            .task {
+                if let book {
+                    await viewModel.openBook(book, modelContext: modelContext)
+                } else if let provider, let title = bookTitle {
+                    await viewModel.openProvider(provider, title: title)
+                }
             }
-        }
-        .onDisappear {
-            viewModel.closeBook()
-        }
+            .onDisappear {
+                viewModel.closeBook()
+            }
         #if os(iOS)
-        .focusable()
-        .focused($isFocused)
-        .focusEffectDisabled()
-        .onAppear { isFocused = true }
-        .onKeyPress { press in
-            guard let command = ReaderCommand(key: press.key) else { return .ignored }
-            perform(command)
-            return .handled
-        }
+            .focusable()
+            .focused($isFocused)
+            .focusEffectDisabled()
+            .onAppear { isFocused = true }
+            .onKeyPress { press in
+                guard let command = ReaderCommand(key: press.key) else { return .ignored }
+                perform(command)
+                return .handled
+            }
         #endif
     }
 

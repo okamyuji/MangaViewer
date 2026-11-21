@@ -87,6 +87,24 @@ final class ReaderTouchUITests: XCTestCase {
         )
     }
 
+    func testLandscapeSpreadKeepsTheTitleOutOfTheReadingArea() {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let window = app.windows.firstMatch
+        let settled = NSPredicate { _, _ in self.readerContent.frame.width > self.readerContent.frame.height }
+        wait(for: [XCTNSPredicateExpectation(predicate: settled, object: nil)], timeout: 10)
+
+        // A large title adds a whole row above the pages; the inline title sits in the bar
+        XCTAssertLessThan(
+            readerContent.frame.minY - window.frame.minY, 90,
+            "reader \(readerContent.frame) starts too far below the top of \(window.frame)"
+        )
+
+        // Full screen hides every bar, so the pages start at the top of the screen
+        tap(atX: 0.5)
+        let fullScreen = NSPredicate { _, _ in self.readerContent.frame.minY - window.frame.minY < 1 }
+        wait(for: [XCTNSPredicateExpectation(predicate: fullScreen, object: nil)], timeout: 5)
+    }
+
     func testPortraitShowsOnePagePerStep() {
         tap(atX: 0.15)
         waitForPage("2 / 4")
