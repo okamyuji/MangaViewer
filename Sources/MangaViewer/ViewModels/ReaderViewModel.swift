@@ -1,7 +1,7 @@
-import AppKit
 import Foundation
 import os.log
 import SwiftData
+import SwiftUI
 
 private let logger = Logger(
     subsystem: Bundle.main.bundleIdentifier ?? "MangaViewer", category: "ReaderViewModel"
@@ -19,7 +19,7 @@ final class ReaderViewModel {
     var filterSettings: ImageFilterSettings = .default
     var isFullScreen: Bool = false
 
-    var spreadImages: (left: NSImage?, right: NSImage?) = (nil, nil)
+    var spreadImages: (left: PlatformImage?, right: PlatformImage?) = (nil, nil)
     var isLoading: Bool = false
     var errorMessage: String?
     var showBookmarkToast: Bool = false
@@ -37,6 +37,8 @@ final class ReaderViewModel {
     private(set) var isCurrentPageWide: Bool = false
     /// Whether the display is showing a single page (wide primary or wide secondary)
     private var displaysSinglePage: Bool = false
+    /// Set by the view when the reader area is portrait (iPad held upright)
+    private var prefersSinglePage: Bool = false
 
     private var provider: PageProvider?
     private let imageCache = ImageCache()
@@ -45,6 +47,11 @@ final class ReaderViewModel {
     private var accessingURL: URL?
     private var loadingTask: Task<Void, Never>?
     private var toastTask: Task<Void, Never>?
+
+    init(settings: SettingsViewModel = SettingsViewModel()) {
+        readingDirection = settings.readingDirection
+        zoomMode = settings.zoomMode
+    }
 
     func openBook(_ book: Book, modelContext: ModelContext) async {
         loadingTask?.cancel()
@@ -114,7 +121,7 @@ final class ReaderViewModel {
         } else {
             do {
                 book.bookmarkData = try url.bookmarkData(
-                    options: .withSecurityScope,
+                    options: BookmarkOptions.creation,
                     includingResourceValuesForKeys: nil,
                     relativeTo: nil
                 )
@@ -197,6 +204,12 @@ final class ReaderViewModel {
     func setReadingDirection(_ direction: ReadingDirection) {
         guard direction != readingDirection else { return }
         readingDirection = direction
+        scheduleLoadPage()
+    }
+
+    func setPrefersSinglePage(_ single: Bool) {
+        guard single != prefersSinglePage else { return }
+        prefersSinglePage = single
         scheduleLoadPage()
     }
 
@@ -297,12 +310,12 @@ final class ReaderViewModel {
         isLoading = false
     }
 
-    private func isLandscapeImage(_ image: NSImage) -> Bool {
+    private func isLandscapeImage(_ image: PlatformImage) -> Bool {
         let size = image.size
         return size.width > size.height * 1.2
     }
 
-    private func loadImageForPage(_ index: Int) async -> NSImage? {
+    private func loadImageForPage(_ index: Int) async -> PlatformImage? {
         guard let provider, index >= 0, index < totalPages else { return nil }
         if let cached = imageCache.image(for: index) {
             return cached
@@ -335,8 +348,7 @@ final class ReaderViewModel {
 
         isCurrentPageWide = false
 
-        let secondaryIndex = currentPage + 1
-        let secondaryImage = await loadImageForPage(secondaryIndex)
+        let secondaryImage = prefersSinglePage ? nil : await loadImageForPage(currentPage + 1)
         guard !Task.isCancelled else { return }
 
         // If the secondary image is also wide, or there is no secondary page,
@@ -364,35 +376,24 @@ final class ReaderViewModel {
         }
     }
 
-    private func createErrorPlaceholder(page: Int, error: Error) -> NSImage {
-        let size = NSSize(width: 800, height: 1200)
-        return NSImage(size: size, flipped: true) { drawRect in
-            NSColor.windowBackgroundColor.setFill()
-            NSBezierPath.fill(drawRect)
-
-            let iconRect = NSRect(x: 350, y: 450, width: 100, height: 100)
-            if let symbol = NSImage(
-                systemSymbolName: "exclamationmark.triangle",
-                accessibilityDescription: nil
-            ) {
-                symbol.draw(in: iconRect)
-            }
-
-            let style = NSMutableParagraphStyle()
-            style.alignment = .center
-            let attrs: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: 14),
-                .foregroundColor: NSColor.secondaryLabelColor,
-                .paragraphStyle: style
-            ]
-            let text = "Page \(page + 1)\n\(error.localizedDescription)"
-            text.draw(in: NSRect(x: 50, y: 560, width: 700, height: 80), withAttributes: attrs)
-
-            return true
+    private func createErrorPlaceholder(page: Int, error: Error) -> PlatformImage {
+        let placeholder = VStack(spacing: 24) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 80))
+            Text("Page \(page + 1)\n\(error.localizedDescription)")
+                .font(.system(size: 14))
+                .multilineTextAlignment(.center)
         }
+        .foregroundStyle(.secondary)
+        .frame(width: 800, height: 1200)
+        .background(Color.readerBackground)
+
+        let renderer = ImageRenderer(content: placeholder)
+        renderer.scale = 1
+        return renderer.cgImage.map { PlatformImage.make(cgImage: $0) } ?? PlatformImage()
     }
 
-    private func applyFilters(to image: NSImage) -> NSImage {
+    private func applyFilters(to image: PlatformImage) -> PlatformImage {
         ImageFilterApplier.apply(filterSettings, to: image)
     }
 
