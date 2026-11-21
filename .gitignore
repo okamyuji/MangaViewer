@@ -86,3 +86,6 @@ fastlane/README.md
 
 # Intermediate design notes
 docs/superpowers/
+
+# Local build output (fastlane archive, iPad release builds)
+build/
