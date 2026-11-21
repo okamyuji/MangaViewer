@@ -12,7 +12,12 @@ struct ContentView: View {
     @State private var directOpenAccessingURL: URL?
     @State private var isLoading = false
     @State private var loadingError: String?
-    @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
+    #if os(iOS)
+        /// .automatic hides the sidebar on a portrait iPad, and with it the book list, Add Books and Settings
+        @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    #else
+        @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
+    #endif
     @State private var openFileTask: Task<Void, Never>?
     @State private var openRequestID: Int = 0
 
@@ -40,8 +45,13 @@ struct ContentView: View {
                 #endif
             } else {
                 NavigationSplitView(columnVisibility: $columnVisibility) {
-                    SidebarView()
+                    SidebarView(columnVisibility: $columnVisibility)
+                    #if os(iOS)
+                        // Narrower than this, the sidebar bar folds Settings and Add Books into an overflow menu
+                        .navigationSplitViewColumnWidth(min: 300, ideal: 320, max: 400)
+                    #else
                         .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 300)
+                    #endif
                 } detail: {
                     Text("Select a book to read")
                         .foregroundStyle(.secondary)

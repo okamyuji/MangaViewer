@@ -8,6 +8,15 @@ struct SidebarView: View {
     @Query(sort: \Book.title) private var books: [Book]
     @Query(sort: \Tag.name) private var tags: [Tag]
 
+    @Binding var columnVisibility: NavigationSplitViewVisibility
+
+    #if os(iOS)
+        /// Sort lives in the overflow menu so Settings and Add Books stay visible in the sidebar bar.
+        private static let sortPlacement = ToolbarItemPlacement.secondaryAction
+    #else
+        private static let sortPlacement = ToolbarItemPlacement.primaryAction
+    #endif
+
     @State private var searchText = ""
     @State private var sortOrder: SortOrder = .title
     @State private var selectedBook: Book?
@@ -139,7 +148,7 @@ struct SidebarView: View {
                 .accessibilityLabel("Add Books")
             }
 
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItem(placement: Self.sortPlacement) {
                 Menu {
                     Picker("Sort by", selection: $sortOrder) {
                         ForEach(SortOrder.allCases) { order in
@@ -156,6 +165,12 @@ struct SidebarView: View {
             ReaderView(book: book)
                 .id(book.id)
         }
+        #if os(iOS)
+        // The reader gets the whole screen; the library comes back when it closes
+        .onChange(of: navigationBook) { _, book in
+            columnVisibility = book == nil ? .all : .detailOnly
+        }
+        #endif
         .onChange(of: selectedBook) { _, newBook in
             if let book = newBook {
                 // Reset navigation first to ensure it triggers even for the same book
@@ -261,7 +276,7 @@ struct BookRow: View {
 
 #Preview {
     NavigationSplitView {
-        SidebarView()
+        SidebarView(columnVisibility: .constant(.all))
     } detail: {
         Text("Detail")
     }
