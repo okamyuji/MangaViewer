@@ -37,7 +37,7 @@ final class ZipExtractor: PageProvider, @unchecked Sendable {
     }
 
     func image(at index: Int) async throws -> PlatformImage {
-        guard index >= 0 && index < imageEntries.count else {
+        guard index >= 0, index < imageEntries.count else {
             throw MangaViewerError.pageOutOfRange(index, imageEntries.count)
         }
 

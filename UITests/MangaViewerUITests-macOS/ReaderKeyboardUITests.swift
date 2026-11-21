@@ -26,7 +26,8 @@ final class ReaderKeyboardUITests: XCTestCase {
         while Date() < deadline {
             app.typeKey(key, modifierFlags: [])
             let changed = NSPredicate { _, _ in (indicator.value as? String ?? indicator.label) == page }
-            if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: changed, object: nil)], timeout: 2) == .completed {
+            let expectation = XCTNSPredicateExpectation(predicate: changed, object: nil)
+            if XCTWaiter.wait(for: [expectation], timeout: 2) == .completed {
                 return
             }
         }

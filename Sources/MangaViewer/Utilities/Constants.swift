@@ -24,4 +24,14 @@ enum AppEnvironment {
     #else
         static let isRunningUITests = false
     #endif
+
+    /// UI-test launches start from empty settings, so a developer's watched folders and reading
+    /// direction neither leak into the tests nor get rescanned by them.
+    /// `nonisolated(unsafe)`: UserDefaults is documented as thread-safe but is not marked Sendable.
+    nonisolated(unsafe) static let settingsStore: UserDefaults = {
+        guard isRunningUITests else { return .standard }
+        let suite = "MangaViewerUITests"
+        UserDefaults.standard.removePersistentDomain(forName: suite)
+        return UserDefaults(suiteName: suite) ?? .standard
+    }()
 }

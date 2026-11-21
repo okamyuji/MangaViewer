@@ -47,19 +47,15 @@ final class FolderLoader: PageProvider, Sendable {
             return results
         }
 
-        for case let fileURL as URL in enumerator where ImageFileFilter.isImageFile(fileURL) {
-            // A device or looped link has no size to check and may never end, so only files are pages
-            let target = fileURL.resolvingSymlinksInPath()
-            if (try? target.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true {
-                results.append(fileURL)
-            }
+        for case let fileURL as URL in enumerator where ImageFileFilter.isPageFile(fileURL) {
+            results.append(fileURL)
         }
 
         return results
     }
 
     func image(at index: Int) async throws -> PlatformImage {
-        guard index >= 0 && index < imageFiles.count else {
+        guard index >= 0, index < imageFiles.count else {
             throw MangaViewerError.pageOutOfRange(index, imageFiles.count)
         }
 
@@ -68,13 +64,14 @@ final class FolderLoader: PageProvider, Sendable {
         let data: Data
         do {
             data = try CoordinatedRead.read(fileURL) { readable in
-                // A symlink reports its own size, so measure and read the file it points to
-                let file = readable.resolvingSymlinksInPath()
-                let size = try file.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
-                guard Int64(size) <= maxPageBytes else {
+                // Reading one byte past the limit also catches a file that grew after it was listed
+                let handle = try FileHandle(forReadingFrom: readable)
+                defer { try? handle.close() }
+                let bytes = try handle.read(upToCount: Int(maxPageBytes) + 1) ?? Data()
+                guard Int64(bytes.count) <= maxPageBytes else {
                     throw MangaViewerError.pageTooLarge
                 }
-                return try Data(contentsOf: file)
+                return bytes
             }
         } catch let error as MangaViewerError {
             throw error

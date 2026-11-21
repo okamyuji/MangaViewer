@@ -116,7 +116,10 @@ final class ReaderTouchUITests: XCTestCase {
 
         let before = page.frame
         readerContent.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5))
-            .press(forDuration: 0.1, thenDragTo: readerContent.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.5)))
+            .press(
+                forDuration: 0.1,
+                thenDragTo: readerContent.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.5))
+            )
         XCTAssertEqual(pageIndicator.label, "1 / 4")
         XCTAssertGreaterThan(page.frame.minX, before.minX, "a zoomed drag should move the page \(page.frame)")
     }

@@ -261,6 +261,21 @@ struct LibraryWatchingTests {
         #expect(books.map(\.type) == [.folder])
     }
 
+    @Test("a folder named like an image does not turn its parent into a book")
+    func imageNamedFolderIsNotAPage() async throws {
+        let context = try makeContext()
+        let folder = try makeFolderWithSampleBook(pages: 2)
+        try FileManager.default.createDirectory(
+            at: folder.appendingPathComponent("cover.jpg"), withIntermediateDirectories: true
+        )
+        let settings = SettingsViewModel(store: makeIsolatedSettingsStore())
+        let library = LibraryViewModel(modelContext: context, startWatching: false, settings: settings)
+
+        await library.addFolder(folder)
+
+        #expect(try context.fetch(FetchDescriptor<Book>()).map(\.title) == ["sample"])
+    }
+
     @Test("a watched folder without archives imports nothing")
     func emptyFolderImportsNothing() async throws {
         let context = try makeContext()

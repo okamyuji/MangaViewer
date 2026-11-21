@@ -11,9 +11,9 @@ enum SortOrder: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .title: return "Title"
-        case .dateAdded: return "Date Added"
-        case .lastOpened: return "Last Opened"
+        case .title: "Title"
+        case .dateAdded: "Date Added"
+        case .lastOpened: "Last Opened"
         }
     }
 }

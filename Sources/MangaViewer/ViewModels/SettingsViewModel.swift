@@ -19,7 +19,7 @@ final class SettingsViewModel {
     @ObservationIgnored
     @AppStorage("watchedFolders") private var storedWatchedFolders: Data = .init()
 
-    init(store: UserDefaults = .standard) {
+    init(store: UserDefaults = AppEnvironment.settingsStore) {
         _storedReadingDirection = AppStorage(
             wrappedValue: ReadingDirection.rightToLeft.rawValue, "defaultReadingDirection", store: store
         )

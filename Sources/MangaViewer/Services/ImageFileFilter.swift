@@ -15,6 +15,14 @@ enum ImageFileFilter {
         return supportedExtensions.contains(ext)
     }
 
+    /// An image-named entry is a page only when it resolves to a regular file: a folder named
+    /// `cover.jpg`, a device such as /dev/zero, or a looped or broken link is not.
+    static func isPageFile(_ url: URL) -> Bool {
+        guard isImageFile(url) else { return false }
+        let target = url.resolvingSymlinksInPath()
+        return (try? target.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true
+    }
+
     static func sortedNaturally(_ paths: [String]) -> [String] {
         paths.sorted { lhs, rhs in
             lhs.compare(rhs, options: [.numeric, .caseInsensitive]) == .orderedAscending

@@ -17,3 +17,6 @@
 
 # Local build output, including the checked-out packages of iPad release builds
 --exclude build
+
+# Matches SWIFT_VERSION in project.yml, so version-dependent rules run
+--swiftversion 6.0

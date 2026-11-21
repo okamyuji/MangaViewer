@@ -160,7 +160,7 @@ final class LibraryViewModel {
         let entries = (try? FileManager.default.contentsOfDirectory(
             at: folder, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
         )) ?? []
-        return entries.contains { ImageFileFilter.isImageFile($0) }
+        return entries.contains { ImageFileFilter.isPageFile($0) }
     }
 
     private func addBook(at url: URL) async {
