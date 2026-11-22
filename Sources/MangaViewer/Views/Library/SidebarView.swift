@@ -302,6 +302,14 @@ struct BookRow: View {
     let book: Book
 
     var body: some View {
+        // A row leaving the list (on iPad, when select mode ends with the delete) is drawn once more with
+        // the book it held, which the list's own filter cannot drop
+        if book.isInLibrary {
+            row
+        }
+    }
+
+    private var row: some View {
         HStack(spacing: 12) {
             // Thumbnail
             if let thumbnailData = book.thumbnailData,
