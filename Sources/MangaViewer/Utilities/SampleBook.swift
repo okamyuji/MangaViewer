@@ -10,6 +10,16 @@
         static let launchArgument = "-UITestSampleBook"
         /// Imports a sample book into the library instead of opening it, with page 3 a spread scan.
         static let libraryLaunchArgument = "-UITestLibrarySample"
+        /// Imports a folder of three volumes whose names sort naturally as Vol 1, Vol 2, Vol 10.
+        static let seriesLaunchArgument = "-UITestLibrarySeries"
+
+        static func writeSeries(in folder: URL) throws {
+            try? FileManager.default.removeItem(at: folder)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            for volume in [1, 2, 10] {
+                try writeCBZ(to: folder.appendingPathComponent("Vol \(volume).cbz"), pageCount: 3)
+            }
+        }
 
         /// Pages in `widePages` are twice as wide as they are tall, like a scanned two-page spread.
         static func writeCBZ(

@@ -9,7 +9,6 @@ struct ContentView: View {
     #endif
     @Query private var books: [Book]
 
-    @State private var selectedBook: Book?
     @State private var directOpenProvider: PageProvider?
     @State private var directOpenTitle: String?
     @State private var directOpenAccessingURL: URL?
@@ -114,6 +113,16 @@ struct ContentView: View {
 
     #if DEBUG
         private func openSampleBookIfRequested() {
+            if ProcessInfo.processInfo.arguments.contains(SampleBook.seriesLaunchArgument) {
+                let folder = FileManager.default.temporaryDirectory.appendingPathComponent("UITestSeries")
+                do {
+                    try SampleBook.writeSeries(in: folder)
+                    Task { await library?.addFolder(folder) }
+                } catch {
+                    loadingError = error.localizedDescription
+                }
+                return
+            }
             if ProcessInfo.processInfo.arguments.contains(SampleBook.libraryLaunchArgument) {
                 let url = FileManager.default.temporaryDirectory.appendingPathComponent("UITestLibrary.cbz")
                 do {

@@ -19,12 +19,17 @@ struct SidebarView: View {
 
     @State private var searchText = ""
     @State private var sortOrder: SortOrder = .title
-    @State private var selectedBook: Book?
+    @State private var selection = Set<Book>()
+    @State private var booksPendingDeletion: [Book] = []
+    @State private var showDeleteConfirmation = false
     @State private var navigationBook: Book?
     @State private var showAddTagSheet = false
     @State private var selectedTag: Tag?
     @State private var showImporter = false
     @State private var showSettings = false
+    #if os(iOS)
+        @State private var editMode: EditMode = .inactive
+    #endif
 
     private var filteredBooks: [Book] {
         var result = books
@@ -39,7 +44,7 @@ struct SidebarView: View {
 
         switch sortOrder {
         case .title:
-            result.sort { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+            result.sort { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
         case .dateAdded:
             result.sort { $0.addedAt > $1.addedAt }
         case .lastOpened:
@@ -70,17 +75,12 @@ struct SidebarView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
 
-            List(selection: $selectedBook) {
+            List(selection: $selection) {
                 // Library Section with books
                 Section("Library") {
                     ForEach(filteredBooks) { book in
                         BookRow(book: book)
                             .tag(book)
-                            .contextMenu {
-                                Button("Delete", role: .destructive) {
-                                    deleteBook(book)
-                                }
-                            }
                     }
                 }
 
@@ -120,10 +120,19 @@ struct SidebarView: View {
                 }
             }
             .listStyle(.sidebar)
-            #if os(iOS)
-                .refreshable {
-                    await library?.rescanWatchedFolders()
+            // Right-clicking a selected row acts on the whole selection, any other row on that row alone
+            .contextMenu(forSelectionType: Book.self) { items in
+                if !items.isEmpty {
+                    Button(items.count == 1 ? "Delete Book" : "Delete \(items.count) Books", role: .destructive) {
+                        confirmDeletion(of: items)
+                    }
                 }
+            }
+            #if os(iOS)
+            .environment(\.editMode, $editMode)
+            .refreshable {
+                await library?.rescanWatchedFolders()
+            }
             #endif
         }
         .toolbar {
@@ -135,6 +144,25 @@ struct SidebarView: View {
                         Image(systemName: "gearshape")
                     }
                     .accessibilityLabel("Settings")
+                }
+            #endif
+
+            #if os(iOS)
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(editMode.isEditing ? "Done" : "Select") {
+                        selection.removeAll()
+                        editMode = editMode.isEditing ? .inactive : .active
+                    }
+                }
+
+                if editMode.isEditing {
+                    ToolbarItem(placement: .bottomBar) {
+                        Button("Delete", role: .destructive) {
+                            confirmDeletion(of: selection)
+                        }
+                        .disabled(selection.isEmpty)
+                        .accessibilityIdentifier("deleteSelectedBooks")
+                    }
                 }
             #endif
 
@@ -171,14 +199,29 @@ struct SidebarView: View {
             columnVisibility = book == nil ? .all : .detailOnly
         }
         #endif
-        .onChange(of: selectedBook) { _, newBook in
-            if let book = newBook {
-                // Reset navigation first to ensure it triggers even for the same book
-                navigationBook = nil
-                Task { @MainActor in
-                    navigationBook = book
-                }
+        .onChange(of: selection) { _, newSelection in
+            // Picking more books, or picking in select mode, gathers them for deletion instead of opening one
+            guard newSelection.count == 1, let book = newSelection.first else { return }
+            #if os(iOS)
+                guard !editMode.isEditing else { return }
+            #endif
+            // Reset navigation first to ensure it triggers even for the same book
+            navigationBook = nil
+            Task { @MainActor in
+                navigationBook = book
             }
+        }
+        .confirmationDialog(
+            booksPendingDeletion.count == 1
+                ? "Delete \"\(booksPendingDeletion.first?.title ?? "")\"?"
+                : "Delete \(booksPendingDeletion.count) books?",
+            isPresented: $showDeleteConfirmation
+        ) {
+            Button("Delete", role: .destructive) {
+                deleteBooks(booksPendingDeletion)
+            }
+        } message: {
+            Text("The files stay on disk; only the library entries are removed.")
         }
         .fileImporter(
             isPresented: $showImporter,
@@ -213,12 +256,34 @@ struct SidebarView: View {
         }
     }
 
-    private func deleteBook(_ book: Book) {
-        let filePath = book.filePath
-        Task { @MainActor in
-            await SecurityScopedBookmarkManager.shared.removeBookmark(for: filePath)
+    private func confirmDeletion(of books: Set<Book>) {
+        guard !books.isEmpty else { return }
+        booksPendingDeletion = books.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+        showDeleteConfirmation = true
+    }
+
+    private func deleteBooks(_ books: [Book]) {
+        booksPendingDeletion = []
+        selection.subtract(books)
+        if let open = navigationBook, books.contains(open) {
+            navigationBook = nil
+        }
+        #if os(iOS)
+            if selection.isEmpty {
+                editMode = .inactive
+            }
+        #endif
+        let filePaths = books.map(\.filePath)
+        // Delete in the same update that clears the selection; a later delete leaves the list
+        // redrawing selected rows whose models are gone
+        for book in books {
             modelContext.delete(book)
-            try? modelContext.save()
+        }
+        try? modelContext.save()
+        Task {
+            for filePath in filePaths {
+                await SecurityScopedBookmarkManager.shared.removeBookmark(for: filePath)
+            }
         }
     }
 
