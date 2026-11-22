@@ -181,7 +181,8 @@ struct ReaderNextVolumeTests {
         reader.nextPage()
         var turnedWhileOpening = false
         for _ in 0 ..< 10000 where !turnedWhileOpening {
-            if reader.currentBook === second, reader.isLoading {
+            // Only before the new volume's page count is known; after it, a turn is a normal one
+            if reader.currentBook === second, reader.totalPages != 3 {
                 reader.nextPage()
                 turnedWhileOpening = true
             }
@@ -206,7 +207,7 @@ struct ReaderNextVolumeTests {
         try #require(reader.currentBook === second)
         reader.closeBook()
 
-        #expect(second.progress?.isCompleted != true)
+        #expect(second.progress == nil)
     }
 
     @Test("a volume imported while reading becomes the next volume by the last page")
