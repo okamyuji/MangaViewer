@@ -77,6 +77,19 @@ struct ReaderNextVolumeTests {
         context.insert(second)
     }
 
+    /// Holds the reader's next open at `beforePagesOpen` until `release` runs.
+    private func holdNextOpen(of reader: ReaderViewModel) -> (reached: AsyncStream<Void>, release: () -> Void) {
+        let (reached, reachedContinuation) = AsyncStream<Void>.makeStream()
+        let (released, releasedContinuation) = AsyncStream<Void>.makeStream()
+        reader.beforePagesOpen = {
+            reachedContinuation.yield()
+            for await _ in released {
+                break
+            }
+        }
+        return (reached, { releasedContinuation.yield() })
+    }
+
     private func waitUntil(_ condition: () -> Bool) async throws {
         for _ in 0 ..< 100 where !condition() {
             try await Task.sleep(for: .milliseconds(20))
@@ -177,18 +190,15 @@ struct ReaderNextVolumeTests {
     func pageTurnDuringVolumeOpenIsIgnored() async throws {
         let reader = makeIsolatedReader()
         await reader.openBook(first, modelContext: context, startPage: 3)
+        let hold = holdNextOpen(of: reader)
 
         reader.nextPage()
-        var turnedWhileOpening = false
-        for _ in 0 ..< 10000 where !turnedWhileOpening {
-            // Only before the new volume's page count is known; after it, a turn is a normal one
-            if reader.currentBook === second, reader.totalPages != 3 {
-                reader.nextPage()
-                turnedWhileOpening = true
-            }
-            await Task.yield()
+        for await _ in hold.reached {
+            break
         }
-        try #require(turnedWhileOpening)
+        #expect(reader.currentBook === second)
+        reader.nextPage()
+        hold.release()
         try await waitUntil { !reader.isLoading && reader.totalPages == 3 }
 
         #expect(reader.currentPage == 0)
@@ -196,16 +206,18 @@ struct ReaderNextVolumeTests {
     }
 
     @Test("closing the reader while a volume opens does not mark that volume completed")
-    func closeDuringOpenKeepsProgress() async throws {
+    func closeDuringOpenKeepsProgress() async {
         let reader = makeIsolatedReader()
         await reader.openBook(first, modelContext: context, startPage: 3)
+        let hold = holdNextOpen(of: reader)
 
         reader.nextPage()
-        for _ in 0 ..< 10000 where reader.currentBook !== second {
-            await Task.yield()
+        for await _ in hold.reached {
+            break
         }
-        try #require(reader.currentBook === second)
+        #expect(reader.currentBook === second)
         reader.closeBook()
+        hold.release()
 
         #expect(second.progress == nil)
     }

@@ -62,7 +62,8 @@ final class LibraryUITests: XCTestCase {
         confirm.tap()
 
         // The kept book proves the list is still on screen, so the missing ones were deleted rather than hidden
-        XCTAssertTrue(app.staticTexts["Vol 1"].waitForExistence(timeout: 5))
+        let kept = app.staticTexts["Vol 1"].waitForExistence(timeout: 5)
+        XCTAssertTrue(kept, "Vol 1 is not on screen after the delete:\n\(app.debugDescription)")
         let gone = NSPredicate(format: "exists == false")
         wait(for: [expectation(for: gone, evaluatedWith: app.staticTexts["Vol 2"])], timeout: 5)
         XCTAssertFalse(app.staticTexts["Vol 10"].exists)

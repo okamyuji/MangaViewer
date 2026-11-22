@@ -22,6 +22,8 @@ final class ReaderViewModel {
     var spreadImages: (left: PlatformImage?, right: PlatformImage?) = (nil, nil)
     var isLoading: Bool = false
     @ObservationIgnored private var openRequestID = 0
+    /// Runs once a book is on screen and before its pages open; tests hold an open here to act inside it.
+    @ObservationIgnored var beforePagesOpen: @MainActor () async -> Void = {}
     /// Renders the error placeholder for a page; tests replace it to simulate a failed render.
     @ObservationIgnored var renderPlaceholder: @MainActor (AnyView) -> CGImage? = { view in
         let renderer = ImageRenderer(content: view)
@@ -92,6 +94,8 @@ final class ReaderViewModel {
         currentPage = startPage ?? book.progress?.currentPage ?? 0
         isLoading = true
         errorMessage = nil
+        await beforePagesOpen()
+        guard isCurrentOpen(requestID) else { return }
 
         do {
             let (url, scopedURL) = try await resolveBookURL(book)
@@ -436,7 +440,9 @@ final class ReaderViewModel {
             spreadImages = (filteredPrimary, filteredSecondary)
         }
     }
+}
 
+extension ReaderViewModel {
     private func saveProgress() {
         guard let book = currentBook, totalPages > 0 else { return }
 
@@ -450,9 +456,7 @@ final class ReaderViewModel {
 
         try? modelContext?.save()
     }
-}
 
-extension ReaderViewModel {
     private func findNextVolume() -> Book? {
         guard let currentBook, let modelContext else { return nil }
         return Book.nextVolume(after: currentBook, in: (try? modelContext.fetch(FetchDescriptor<Book>())) ?? [])
