@@ -71,7 +71,7 @@ struct ReaderView: View {
                 .animation(.easeInOut(duration: 0.3), value: viewModel.showBookmarkToast)
             }
         }
-        .navigationTitle(book?.title ?? bookTitle ?? "Reader")
+        .navigationTitle(viewModel.currentBook?.title ?? book?.title ?? bookTitle ?? "Reader")
         #if os(iOS)
             // A large title takes a whole row above the pages, which a landscape spread cannot spare
             .navigationBarTitleDisplayMode(.inline)

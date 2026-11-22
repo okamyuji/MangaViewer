@@ -87,7 +87,7 @@ struct ReaderToolbar: View {
                 } label: {
                     Image(systemName: "chevron.left")
                 }
-                .disabled(viewModel.currentPage >= viewModel.totalPages - 1)
+                .disabled(!viewModel.canGoForward)
 
                 // RTL slider: max on left, min on right
                 CleanSlider(
@@ -143,7 +143,7 @@ struct ReaderToolbar: View {
                 } label: {
                     Image(systemName: "chevron.right")
                 }
-                .disabled(viewModel.currentPage >= viewModel.totalPages - 1)
+                .disabled(!viewModel.canGoForward)
             }
         }
     }
