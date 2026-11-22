@@ -22,6 +22,12 @@ final class Book {
     @Relationship(inverse: \Tag.books)
     var tags: [Tag]
 
+    /// False once the book is deleted. A delete marks it `isDeleted` until saved; after the save that flag
+    /// is false again and the book only shows as detached from its context. Reading either kind traps.
+    var isInLibrary: Bool {
+        !isDeleted && modelContext != nil
+    }
+
     var type: BookType {
         get { BookType(rawValue: typeRawValue) ?? .folder }
         set { typeRawValue = newValue.rawValue }
