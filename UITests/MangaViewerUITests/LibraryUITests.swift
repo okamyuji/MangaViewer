@@ -46,6 +46,8 @@ final class LibraryUITests: XCTestCase {
     }
 
     func testSelectModeDeletesTheChosenBooksTogether() {
+        // Landscape keeps the sidebar beside the detail; in portrait it overlays it and may close with the dialog
+        XCUIDevice.shared.orientation = .landscapeLeft
         let app = launchWithSeries()
         app.buttons["Select"].tap()
         app.staticTexts["Vol 2"].tap()
@@ -59,10 +61,11 @@ final class LibraryUITests: XCTestCase {
         XCTAssertTrue(confirm.waitForExistence(timeout: 5))
         confirm.tap()
 
+        // The kept book proves the list is still on screen, so the missing ones were deleted rather than hidden
+        XCTAssertTrue(app.staticTexts["Vol 1"].waitForExistence(timeout: 5))
         let gone = NSPredicate(format: "exists == false")
         wait(for: [expectation(for: gone, evaluatedWith: app.staticTexts["Vol 2"])], timeout: 5)
         XCTAssertFalse(app.staticTexts["Vol 10"].exists)
-        XCTAssertTrue(app.staticTexts["Vol 1"].exists)
     }
 
     func testTurningPastTheLastPageOpensTheNextVolume() {
