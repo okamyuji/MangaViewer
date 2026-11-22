@@ -22,6 +22,8 @@ final class ReaderViewModel {
     var spreadImages: (left: PlatformImage?, right: PlatformImage?) = (nil, nil)
     var isLoading: Bool = false
     @ObservationIgnored private var openRequestID = 0
+    /// Runs once a book is on screen and before its pages open; tests hold an open here to act inside it.
+    @ObservationIgnored var beforePagesOpen: @MainActor () async -> Void = {}
     /// Renders the error placeholder for a page; tests replace it to simulate a failed render.
     @ObservationIgnored var renderPlaceholder: @MainActor (AnyView) -> CGImage? = { view in
         let renderer = ImageRenderer(content: view)
@@ -32,6 +34,13 @@ final class ReaderViewModel {
     var errorMessage: String?
     var showBookmarkToast: Bool = false
     var bookmarkToastMessage: String = ""
+
+    /// The book after this one in its folder, opened when reading goes past the last page.
+    private(set) var nextVolume: Book?
+
+    var canGoForward: Bool {
+        currentPage < totalPages - 1 || nextVolume != nil
+    }
 
     var canBookmark: Bool {
         currentBook != nil
@@ -55,17 +64,23 @@ final class ReaderViewModel {
     private var accessingURL: URL?
     private var loadingTask: Task<Void, Never>?
     private var toastTask: Task<Void, Never>?
+    private var volumeTask: Task<Void, Never>?
 
     init(settings: SettingsViewModel = SettingsViewModel()) {
         readingDirection = settings.readingDirection
         zoomMode = settings.zoomMode
     }
 
-    func openBook(_ book: Book, modelContext: ModelContext) async {
+    func openBook(_ book: Book, modelContext: ModelContext, startPage: Int? = nil) async {
         openRequestID += 1
         let requestID = openRequestID
         loadingTask?.cancel()
         loadingTask = nil
+        provider?.close()
+        provider = nil
+        nextVolume = nil
+        // Holds page turns off until this book's pages are known; the previous book's count would let them through
+        totalPages = 0
 
         if let previousURL = accessingURL {
             previousURL.stopAccessingSecurityScopedResource()
@@ -76,9 +91,10 @@ final class ReaderViewModel {
         guard isCurrentOpen(requestID) else { return }
         self.modelContext = modelContext
         currentBook = book
-        currentPage = book.progress?.currentPage ?? 0
+        currentPage = startPage ?? book.progress?.currentPage ?? 0
         isLoading = true
         errorMessage = nil
+        await beforePagesOpen()
 
         do {
             let (url, scopedURL) = try await resolveBookURL(book)
@@ -111,6 +127,7 @@ final class ReaderViewModel {
 
             book.lastOpenedAt = Date()
             try? modelContext.save()
+            nextVolume = findNextVolume()
 
             await loadCurrentPage()
         } catch {
@@ -184,6 +201,9 @@ final class ReaderViewModel {
         loadingTask = nil
         toastTask?.cancel()
         toastTask = nil
+        volumeTask?.cancel()
+        volumeTask = nil
+        nextVolume = nil
 
         saveProgress()
         provider?.close()
@@ -210,6 +230,15 @@ final class ReaderViewModel {
 
     func nextPage() {
         guard totalPages > 0 else { return }
+        // Looked up again on the turn: the volume found at open may have been deleted from the library since
+        if currentPage + currentStep >= totalPages, let modelContext {
+            nextVolume = findNextVolume()
+            if let next = nextVolume {
+                volumeTask?.cancel()
+                volumeTask = Task { await openBook(next, modelContext: modelContext, startPage: 0) }
+                return
+            }
+        }
         let newPage = min(currentPage + currentStep, totalPages - 1)
         if newPage != currentPage {
             currentPage = newPage
@@ -342,13 +371,12 @@ final class ReaderViewModel {
         guard !Task.isCancelled else { return }
 
         imageCache.prefetch(around: currentPage, totalPages: totalPages, using: provider)
+        if currentPage + currentStep >= totalPages {
+            // A volume imported into the folder while reading becomes reachable from the toolbar
+            nextVolume = findNextVolume()
+        }
         saveProgress()
         isLoading = false
-    }
-
-    private func isLandscapeImage(_ image: PlatformImage) -> Bool {
-        let size = image.size
-        return size.width > size.height * 1.2
     }
 
     private func loadImageForPage(_ index: Int) async -> PlatformImage? {
@@ -411,6 +439,32 @@ final class ReaderViewModel {
             spreadImages = (filteredPrimary, filteredSecondary)
         }
     }
+}
+
+extension ReaderViewModel {
+    private func saveProgress() {
+        guard let book = currentBook, totalPages > 0 else { return }
+
+        if book.progress == nil {
+            book.progress = ReadingProgress()
+        }
+
+        book.progress?.currentPage = currentPage
+        book.progress?.updatedAt = Date()
+        book.progress?.isCompleted = currentPage + currentStep >= totalPages
+
+        try? modelContext?.save()
+    }
+
+    private func findNextVolume() -> Book? {
+        guard let currentBook, let modelContext else { return nil }
+        return Book.nextVolume(after: currentBook, in: (try? modelContext.fetch(FetchDescriptor<Book>())) ?? [])
+    }
+
+    private func isLandscapeImage(_ image: PlatformImage) -> Bool {
+        let size = image.size
+        return size.width > size.height * 1.2
+    }
 
     private func createErrorPlaceholder(page: Int, error: Error) -> PlatformImage {
         let placeholder = VStack(spacing: 24) {
@@ -434,19 +488,5 @@ final class ReaderViewModel {
 
     private func applyFilters(to image: PlatformImage) -> PlatformImage {
         ImageFilterApplier.apply(filterSettings, to: image)
-    }
-
-    private func saveProgress() {
-        guard let book = currentBook else { return }
-
-        if book.progress == nil {
-            book.progress = ReadingProgress()
-        }
-
-        book.progress?.currentPage = currentPage
-        book.progress?.updatedAt = Date()
-        book.progress?.isCompleted = currentPage + currentStep >= totalPages
-
-        try? modelContext?.save()
     }
 }

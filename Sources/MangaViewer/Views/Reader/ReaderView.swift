@@ -13,12 +13,15 @@ struct ReaderView: View {
     let provider: PageProvider?
     let bookTitle: String?
     let onClose: (() -> Void)?
+    /// Reports the book on screen, which changes when reading moves on to the next volume.
+    var onBookChange: ((Book) -> Void)?
 
-    init(book: Book) {
+    init(book: Book, onBookChange: ((Book) -> Void)? = nil) {
         self.book = book
         provider = nil
         bookTitle = nil
         onClose = nil
+        self.onBookChange = onBookChange
     }
 
     init(provider: PageProvider, bookTitle: String, onClose: @escaping () -> Void) {
@@ -71,7 +74,7 @@ struct ReaderView: View {
                 .animation(.easeInOut(duration: 0.3), value: viewModel.showBookmarkToast)
             }
         }
-        .navigationTitle(book?.title ?? bookTitle ?? "Reader")
+        .navigationTitle(viewModel.currentBook?.title ?? book?.title ?? bookTitle ?? "Reader")
         #if os(iOS)
             // A large title takes a whole row above the pages, which a landscape spread cannot spare
             .navigationBarTitleDisplayMode(.inline)
@@ -98,6 +101,11 @@ struct ReaderView: View {
             }
             .onDisappear {
                 viewModel.closeBook()
+            }
+            .onChange(of: viewModel.currentBook) { _, current in
+                if let current {
+                    onBookChange?(current)
+                }
             }
         #if os(iOS)
             .focusable()

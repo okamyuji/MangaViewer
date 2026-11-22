@@ -44,4 +44,54 @@ final class LibraryUITests: XCTestCase {
         let sidebarBack = NSPredicate { _, _ in app.buttons["Add Books"].isHittable }
         wait(for: [XCTNSPredicateExpectation(predicate: sidebarBack, object: nil)], timeout: 5)
     }
+
+    func testSelectModeDeletesTheChosenBooksTogether() {
+        // Landscape keeps the sidebar beside the detail; in portrait it overlays it and may close with the dialog
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let app = launchWithSeries()
+        app.buttons["Select"].tap()
+        app.staticTexts["Vol 2"].tap()
+        app.staticTexts["Vol 10"].tap()
+        XCTAssertFalse(app.staticTexts["pageIndicator"].exists)
+
+        app.buttons["deleteSelectedBooks"].tap()
+        // The bottom bar's Delete can lose its identifier, so look only inside the dialog's popover
+        let confirm = app.popovers.buttons["Delete"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        confirm.tap()
+
+        // The kept book proves the list is still on screen, so the missing ones were deleted rather than hidden
+        let kept = app.staticTexts["Vol 1"].waitForExistence(timeout: 5)
+        XCTAssertTrue(kept, "Vol 1 is not on screen after the delete:\n\(app.debugDescription)")
+        let gone = NSPredicate(format: "exists == false")
+        wait(for: [expectation(for: gone, evaluatedWith: app.staticTexts["Vol 2"])], timeout: 5)
+        XCTAssertFalse(app.staticTexts["Vol 10"].exists)
+    }
+
+    func testTurningPastTheLastPageOpensTheNextVolume() {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let app = launchWithSeries()
+        app.staticTexts["Vol 2"].tap()
+        let indicator = app.staticTexts["pageIndicator"]
+        XCTAssertTrue(indicator.waitForExistence(timeout: 15))
+        let reader = app.otherElements["readerContent"]
+
+        // Right-to-left: the left side turns forward. Vol 2 has 3 pages, then Vol 10 follows
+        for expected in ["3 / 3", "1 / 3"] {
+            reader.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)).tap()
+            let turned = NSPredicate(format: "label == %@", expected)
+            wait(for: [expectation(for: turned, evaluatedWith: indicator)], timeout: 5)
+        }
+        XCTAssertTrue(app.navigationBars["Vol 10"].waitForExistence(timeout: 5))
+    }
+
+    private func launchWithSeries() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments = ["-UITestLibrarySeries"]
+        app.launch()
+        for title in ["Vol 1", "Vol 2", "Vol 10"] {
+            XCTAssertTrue(app.staticTexts[title].waitForExistence(timeout: 15))
+        }
+        return app
+    }
 }
