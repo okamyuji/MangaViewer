@@ -95,7 +95,6 @@ final class ReaderViewModel {
         isLoading = true
         errorMessage = nil
         await beforePagesOpen()
-        guard isCurrentOpen(requestID) else { return }
 
         do {
             let (url, scopedURL) = try await resolveBookURL(book)
