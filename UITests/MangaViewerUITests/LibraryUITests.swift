@@ -55,9 +55,8 @@ final class LibraryUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["pageIndicator"].exists)
 
         app.buttons["deleteSelectedBooks"].tap()
-        let confirm = app.buttons.matching(
-            NSPredicate(format: "label == 'Delete' AND identifier != 'deleteSelectedBooks'")
-        ).firstMatch
+        // The bottom bar's Delete can lose its identifier, so look only inside the dialog's popover
+        let confirm = app.popovers.buttons["Delete"]
         XCTAssertTrue(confirm.waitForExistence(timeout: 5))
         confirm.tap()
 
