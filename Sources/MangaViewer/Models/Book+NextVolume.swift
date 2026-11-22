@@ -5,16 +5,13 @@ extension Book {
     static func nextVolume(after current: Book, in library: [Book]) -> Book? {
         let currentURL = URL(fileURLWithPath: current.filePath)
         let folder = currentURL.deletingLastPathComponent().standardizedFileURL
-        let siblings = library
-            .filter { URL(fileURLWithPath: $0.filePath).deletingLastPathComponent().standardizedFileURL == folder }
-            .sorted {
-                let lhs = URL(fileURLWithPath: $0.filePath).lastPathComponent
-                let rhs = URL(fileURLWithPath: $1.filePath).lastPathComponent
-                return lhs.localizedStandardCompare(rhs) == .orderedAscending
-            }
-        guard let index = siblings.firstIndex(where: { $0 === current }), index + 1 < siblings.count else {
-            return nil
-        }
-        return siblings[index + 1]
+        let name = currentURL.lastPathComponent
+        return library
+            .map { (book: $0, url: URL(fileURLWithPath: $0.filePath)) }
+            .filter { $0.url.deletingLastPathComponent().standardizedFileURL == folder }
+            .map { (book: $0.book, name: $0.url.lastPathComponent) }
+            .filter { $0.name.localizedStandardCompare(name) == .orderedDescending }
+            .min { $0.name.localizedStandardCompare($1.name) == .orderedAscending }?
+            .book
     }
 }

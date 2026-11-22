@@ -62,6 +62,22 @@ final class LibrarySeriesUITests: XCTestCase {
         wait(for: [XCTNSPredicateExpectation(predicate: titled, object: nil)], timeout: 5)
     }
 
+    func testDeletingTheVolumeTheReaderMovedOnToClosesTheReader() {
+        app.staticTexts["Vol 2"].click()
+        let indicator = app.staticTexts["pageIndicator"]
+        XCTAssertTrue(indicator.waitForExistence(timeout: 15))
+        press(.leftArrow, until: "3 / 3", on: indicator)
+        press(.leftArrow, until: "1 / 3", on: indicator)
+
+        app.outlines.staticTexts["Vol 10"].rightClick()
+        app.menuItems["Delete Book"].click()
+        confirmDeletion()
+
+        XCTAssertTrue(waitForDisappearance(of: indicator))
+        XCTAssertFalse(app.outlines.staticTexts["Vol 10"].exists)
+        XCTAssertTrue(app.outlines.staticTexts["Vol 2"].exists)
+    }
+
     func testATagIsStillDeletedFromItsOwnContextMenu() {
         app.buttons["Add Tag"].click()
         let name = app.textFields["Tag Name"]

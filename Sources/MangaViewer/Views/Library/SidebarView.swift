@@ -23,6 +23,7 @@ struct SidebarView: View {
     @State private var booksPendingDeletion: [Book] = []
     @State private var showDeleteConfirmation = false
     @State private var navigationBook: Book?
+    @State private var readerBook: Book?
     @State private var showAddTagSheet = false
     @State private var selectedTag: Tag?
     @State private var showImporter = false
@@ -190,7 +191,7 @@ struct SidebarView: View {
             }
         }
         .navigationDestination(item: $navigationBook) { book in
-            ReaderView(book: book)
+            ReaderView(book: book) { readerBook = $0 }
                 .id(book.id)
         }
         #if os(iOS)
@@ -265,26 +266,22 @@ struct SidebarView: View {
     private func deleteBooks(_ books: [Book]) {
         booksPendingDeletion = []
         selection.subtract(books)
-        if let open = navigationBook, books.contains(open) {
+        // The reader may have moved on from the book it was opened with to a later volume
+        if [navigationBook, readerBook].contains(where: { $0.map(books.contains) ?? false }) {
             navigationBook = nil
+            readerBook = nil
         }
         #if os(iOS)
             if selection.isEmpty {
                 editMode = .inactive
             }
         #endif
-        let filePaths = books.map(\.filePath)
         // Delete in the same update that clears the selection; a later delete leaves the list
         // redrawing selected rows whose models are gone
         for book in books {
             modelContext.delete(book)
         }
         try? modelContext.save()
-        Task {
-            for filePath in filePaths {
-                await SecurityScopedBookmarkManager.shared.removeBookmark(for: filePath)
-            }
-        }
     }
 
     private func deleteTag(_ tag: Tag) {
