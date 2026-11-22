@@ -33,7 +33,9 @@ struct SidebarView: View {
     #endif
 
     private var filteredBooks: [Book] {
-        var result = books
+        // @Query can lag a delete by one update, and rows redrawn then (as leaving select mode does on iPad)
+        // would read a deleted model and trap; after a save it is detached, before it is marked deleted
+        var result = books.filter { !$0.isDeleted && $0.modelContext != nil }
 
         if !searchText.isEmpty {
             result = result.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
