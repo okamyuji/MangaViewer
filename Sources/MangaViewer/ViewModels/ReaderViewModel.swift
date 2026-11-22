@@ -77,6 +77,8 @@ final class ReaderViewModel {
         provider?.close()
         provider = nil
         nextVolume = nil
+        // Holds page turns off until this book's pages are known; the previous book's count would let them through
+        totalPages = 0
 
         if let previousURL = accessingURL {
             previousURL.stopAccessingSecurityScopedResource()
@@ -366,6 +368,10 @@ final class ReaderViewModel {
         guard !Task.isCancelled else { return }
 
         imageCache.prefetch(around: currentPage, totalPages: totalPages, using: provider)
+        if currentPage + currentStep >= totalPages {
+            // A volume imported into the folder while reading becomes reachable from the toolbar
+            nextVolume = findNextVolume()
+        }
         saveProgress()
         isLoading = false
     }
@@ -432,7 +438,7 @@ final class ReaderViewModel {
     }
 
     private func saveProgress() {
-        guard let book = currentBook else { return }
+        guard let book = currentBook, totalPages > 0 else { return }
 
         if book.progress == nil {
             book.progress = ReadingProgress()

@@ -85,6 +85,9 @@ struct ReaderNextVolumeTests {
 
     @Test("next page on the last page opens the next volume from its first page")
     func lastPageOpensNextVolume() async throws {
+        let progress = ReadingProgress()
+        progress.currentPage = 2
+        second.progress = progress
         let reader = makeIsolatedReader()
         await reader.openBook(first, modelContext: context, startPage: 3)
         #expect(reader.canGoForward)
@@ -167,6 +170,61 @@ struct ReaderNextVolumeTests {
         #expect(reader.currentBook === first)
         #expect(reader.currentPage == 3)
         #expect(reader.nextVolume == nil)
+        reader.closeBook()
+    }
+
+    @Test("a page turn while the next volume opens does not move that volume past its first page")
+    func pageTurnDuringVolumeOpenIsIgnored() async throws {
+        let reader = makeIsolatedReader()
+        await reader.openBook(first, modelContext: context, startPage: 3)
+
+        reader.nextPage()
+        var turnedWhileOpening = false
+        for _ in 0 ..< 10000 where !turnedWhileOpening {
+            if reader.currentBook === second, reader.isLoading {
+                reader.nextPage()
+                turnedWhileOpening = true
+            }
+            await Task.yield()
+        }
+        try #require(turnedWhileOpening)
+        try await waitUntil { !reader.isLoading && reader.totalPages == 3 }
+
+        #expect(reader.currentPage == 0)
+        reader.closeBook()
+    }
+
+    @Test("closing the reader while a volume opens does not mark that volume completed")
+    func closeDuringOpenKeepsProgress() async throws {
+        let reader = makeIsolatedReader()
+        await reader.openBook(first, modelContext: context, startPage: 3)
+
+        reader.nextPage()
+        for _ in 0 ..< 10000 where reader.currentBook !== second {
+            await Task.yield()
+        }
+        try #require(reader.currentBook === second)
+        reader.closeBook()
+
+        #expect(second.progress?.isCompleted != true)
+    }
+
+    @Test("a volume imported while reading becomes the next volume by the last page")
+    func importedVolumeIsFoundAtTheEnd() async throws {
+        let reader = makeIsolatedReader()
+        await reader.openBook(second, modelContext: context, startPage: 0)
+        #expect(reader.nextVolume == nil)
+        let folder = URL(fileURLWithPath: second.filePath).deletingLastPathComponent()
+        let laterURL = folder.appendingPathComponent("Vol 11.cbz")
+        try SampleBook.writeCBZ(to: laterURL, pageCount: 2)
+        let later = Book(title: "Vol 11", filePath: laterURL.path, type: .cbz, totalPages: 2)
+        context.insert(later)
+
+        reader.goToPage(2)
+        try await waitUntil { reader.nextVolume != nil }
+
+        #expect(reader.nextVolume === later)
+        #expect(reader.canGoForward)
         reader.closeBook()
     }
 
