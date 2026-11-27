@@ -38,7 +38,8 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: ipad-tests-xcresult
-          path: build/ipad-tests.xcresult
+          # The wildcard keeps the ipad-tests.xcresult folder in the artifact, so the download opens in Xcode
+          path: build/ipad-tests*.xcresult
           if-no-files-found: ignore
           retention-days: 7
 
