@@ -22,8 +22,12 @@ platform :mac do
                    .flat_map { |_, devices| devices }
                    .find { |device| device["name"].start_with?("iPad") }
     UI.user_error!("No iPad simulator is available") unless ipad
-    sh("cd .. && xcodebuild -project MangaViewer.xcodeproj -scheme MangaViewer-iPad -configuration Debug " \
-       "-destination 'platform=iOS Simulator,id=#{ipad['udid']}' test")
+    # On a loaded runner the simulator now and then takes over a minute to hand a fresh launch to XCTest,
+    # so a failed test is retried (up to 3 runs in all); a real failure fails every run. The result bundle is kept for CI to upload.
+    sh("cd .. && rm -rf build/ipad-tests.xcresult && " \
+       "xcodebuild -project MangaViewer.xcodeproj -scheme MangaViewer-iPad -configuration Debug " \
+       "-destination 'platform=iOS Simulator,id=#{ipad['udid']}' " \
+       "-retry-tests-on-failure -resultBundlePath build/ipad-tests.xcresult test")
   end
 
   desc "Run linter and formatter checks"

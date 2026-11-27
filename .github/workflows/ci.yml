@@ -34,6 +34,14 @@ jobs:
       # macOS UI tests drive the app, which needs automation mode without an authentication prompt
       - run: sudo automationmodetool enable-automationmode-without-authentication
       - run: bundle exec fastlane ci
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ipad-tests-xcresult
+          # The wildcard keeps the ipad-tests.xcresult folder in the artifact, so the download opens in Xcode
+          path: build/ipad-tests*.xcresult
+          if-no-files-found: ignore
+          retention-days: 7
 
   security:
     uses: okamyuji/reusable-workflows/.github/workflows/security-scan.yml@v1
